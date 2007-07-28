@@ -2,6 +2,8 @@ from weakref import *
 import inspect
 
 class Signal:
+  __slots__ = ['slots', 'funchost']
+
   """
   class Signal
 
@@ -64,6 +66,8 @@ class Signal:
     self.funchost = []
 
 class _WeakMethod_FuncHost:
+  __slots__ = ['hostedFunction']
+
   def __init__(self, func):
     self.hostedFunction = func
 
@@ -71,6 +75,8 @@ class _WeakMethod_FuncHost:
     self.hostedFunction(*args, **kwargs)
 
 class WeakMethod:
+  __slots__ = ['f', 'c']
+
   def __init__(self, f):
     self.f = f.im_func
     self.c = ref(f.im_self)

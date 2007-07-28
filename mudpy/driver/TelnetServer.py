@@ -59,11 +59,7 @@ class TelnetConnection(asynchat.async_chat):
 
   def recv(self, buffer_size):
     try:
-      data = self.socket.recv(buffer_size)
-      if not data:
-        return ''
-      else:
-        return data
+      return self.socket.recv(buffer_size)
     except EOFError:
       self.handle_close()
       return ''

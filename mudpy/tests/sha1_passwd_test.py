@@ -9,6 +9,7 @@ class PasswordTestCase(unittest.TestCase):
     sh = passwd(PASSWD)
     self.assertTrue(compare(sh, PASSWD))
     self.assertFalse(compare(sh, 'not the real password'))
+    self.assertFalse(compare('', ''))
     
 
 if __name__ == '__main__':

@@ -4,8 +4,8 @@ import popen_pid
 import threading
 import types
 
-from asyncore_reactor import file_dispatcher
-from asyncore_reactor import reactor
+from reactor import file_dispatcher
+from reactor import reactor
 
 
 PIPE = popen_pid.PIPE

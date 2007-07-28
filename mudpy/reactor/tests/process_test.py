@@ -1,7 +1,6 @@
 import os
 import process
 import reactor
-import subprocess
 import unittest
 
 class MyProc(process.Process):
@@ -11,8 +10,8 @@ class MyProc(process.Process):
     self.input_cb_ = input_cb
     self.exit_cb_ = exit_cb
 
-  def register_subprocess(self, *args, **kwargs):
-    process.Process.register_subprocess(self, *args, **kwargs)
+  def popen(self, *args, **kwargs):
+    process.Process.popen(self, *args, **kwargs)
     if self.output_:
       self.stdin.push(self.output_)
       self.stdin.close_when_done()
@@ -34,16 +33,14 @@ class ProcessTestCase(unittest.TestCase):
   def testCatProcess(self):
     proc = MyProc(ProcessTestCase.HELLO_WORLD, self.expectHelloWorld,
         lambda status: self.expectExitStatus(0, status))
-    proc.register_subprocess(subprocess.Popen(['cat'], bufsize=0,
-      stdin=subprocess.PIPE, stdout=subprocess.PIPE), use_stdin = True,
-      use_stdout = True)
+    proc.popen(['cat'], stdin=process.PIPE, stdout=process.PIPE)
 
     reactor.reactor.start_reactor()
     reactor.reactor.close()
 
   def testGrepProcess(self):
     proc = MyProc(None, None, lambda status: self.expectExitStatus(2, status))
-    proc.register_subprocess(subprocess.Popen(['grep'], bufsize=0))
+    proc.popen(['grep'], stderr=file('/dev/null', 'w'))
 
     reactor.reactor.start_reactor()
     reactor.reactor.close()
@@ -51,9 +48,7 @@ class ProcessTestCase(unittest.TestCase):
   def testWcProcess(self):
     proc = MyProc(ProcessTestCase.THREE_LINES, self.expectThree,
         lambda status: self.expectExitStatus(0, status))
-    proc.register_subprocess(subprocess.Popen(['wc', '-l'], bufsize=0,
-      stdin=subprocess.PIPE, stdout=subprocess.PIPE), use_stdin = True,
-      use_stdout = True)
+    proc.popen(['wc', '-l'], stdin=process.PIPE, stdout=process.PIPE)
 
     reactor.reactor.start_reactor()
     reactor.reactor.close()

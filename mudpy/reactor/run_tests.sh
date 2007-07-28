@@ -1,10 +1,11 @@
 #!/bin/sh
-export PYTHONPATH=`dirname $0`
+cd `dirname $0`
+
+export PYTHONPATH=.
 
 for test in tests/*.py
 do
-  echo $PYTHONPATH
-  python $test
+  ../utils/coverage.py -x ${test}
   if [ $? -ne 0 ]
   then
     echo "$test failed!"

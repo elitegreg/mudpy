@@ -15,12 +15,6 @@ def passwd(password, salt=None):
 
 
 def compare(salted_hash, password):
-  try:
-    (salt, passwd_hash) = (salted_hash[0:4], salted_hash[4:])
-  except:
-    logging.getLogger().warning("sha1_passwd.compare(): salted_hash" +
-        " doesn't contain a salt value")
-    return False
-
+  (salt, passwd_hash) = (salted_hash[0:4], salted_hash[4:])
   return salted_hash == passwd(password, salt)
 

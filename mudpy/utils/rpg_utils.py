@@ -12,6 +12,8 @@ def roll_dice(count, sides=6):
 
 
 class Stat(object):
+  __slots__ = ['__dice_map', '__constant']
+
   def __init__(self, dice_map, constant=0):
     self.__dice_map = dice_map
     self.__constant = constant
