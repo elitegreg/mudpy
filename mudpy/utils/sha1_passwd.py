@@ -1,5 +1,3 @@
-import logger_config
-import logging
 import random
 import sha
 import string
