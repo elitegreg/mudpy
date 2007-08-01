@@ -11,12 +11,12 @@ def passwd(password, salt=None):
     for c in random.sample(string.printable, 4):
       salt = salt + c
 
-  return "%s:%s" % (salt, sha.new(salt + password).hexdigest())
+  return "%s%s" % (salt, sha.new(salt + password).hexdigest())
 
 
 def compare(salted_hash, password):
   try:
-    (salt, passwd_hash) = salted_hash.split(':', 1)
+    (salt, passwd_hash) = (salted_hash[0:4], salted_hash[4:])
   except:
     logging.getLogger().warning("sha1_passwd.compare(): salted_hash" +
         " doesn't contain a salt value")

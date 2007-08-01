@@ -23,8 +23,8 @@ class Stat(object):
 
     total = dice_total + self.__constant + modifier
 
-    if min:
-      total = min(total, minimum) 
+    if minimum is not None:
+      total = max(total, minimum) 
 
     return total
 
