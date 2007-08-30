@@ -6,8 +6,7 @@ DEFAULT_PREPOSITIONS = 'at,from,in,on,to,with'
 VERB = '(?:(?P<verb>\w+)(?:\s+(?P<verbprep>%s))?)'
 
 # %s arguments are VERB, PREPOSITIONS
-PARSER_RE = '^%s(?:\s+(?P<direct_obj>.*?))?' \ 
-    '(?(direct_obj)%s\s+(?P<indirect_obj>.*))?$'
+PARSER_RE = '^%s(?:\s+(?P<direct_obj>.*?))?(?(direct_obj)%s\s+(?P<indirect_obj>.*))?$'
 
 
 class Parser(object):

@@ -10,7 +10,6 @@ import utils.logger_config
 import utils.SignalSlots
 
 from driver.Connections import ConnectionManager
-from driver.DB_sqlite3 import Database
 from driver.ObjectAllocator import ObjectAllocator
 from driver.stats import HeartbeatStats
 
