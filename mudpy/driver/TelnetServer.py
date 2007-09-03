@@ -3,7 +3,6 @@ import asyncore
 import logging
 import socket
 import telnetlib
-import utils.hexdump
 
 from telnetlib import AO, AYT, BRK, DM, DO, DONT, ECHO, GA, IAC, \
                       IP, LINEMODE, NAWS, SB, SE, SGA, TM, TTYPE, \
@@ -147,7 +146,7 @@ class TelnetConnection(asynchat.async_chat):
       if opt == SGA:
         logger.info('Client requested "DONT SGA: not supported')
     elif cmd == SE:
-      sbdata = self.sbdataq
+      sbdata = self.read_sb_data()
       if sbdata[0] == NAWS:
         if len(sbdata) == 5:
           width = ord(sbdata[1]) << 16 + ord(sbdata[2])
@@ -186,9 +185,12 @@ class TelnetServer(asyncore.dispatcher):
   def handle_accept(self):
     channel, addr = self.accept()
     logger.info('Connection From: %s', addr)
-    conn = TelnetConnection(channel, addr)
+    conn = self.create_connection(channel, addr)
     self.__connect_handler(conn)
 
   def handle_error(self):
     logger.exception('handle_error()')
+
+  def create_connection(self, channel, addr):
+    return TelnetConnection(channel, addr)
 
