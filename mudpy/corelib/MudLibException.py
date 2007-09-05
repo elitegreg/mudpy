@@ -1,3 +1,0 @@
-class MudLibException(RuntimeError):
-  pass
-
