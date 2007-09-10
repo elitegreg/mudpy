@@ -1,4 +1,10 @@
-FILTER=''.join([(len(repr(chr(x)))==3) and chr(x) or '.' for x in range(256)])
+"""
+This module provides an interface to pretty print binary data as
+hexadecimal in ASCII.
+"""
+
+FILTER=''.join([(len(repr(chr(x)))==3) and chr(x) or '.'
+  for x in range(256)]) #: A translation filter for converting chars
 
 def dump(src, length=16):
   N=0; result=''

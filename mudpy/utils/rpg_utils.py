@@ -1,14 +1,41 @@
+"""
+Provide RPG (Role-Playing Game) Utility Funcions
+"""
+
 import random
 import re
+
 
 DICE_RE = re.compile('^(?P<count>\d+)[Dd](?P<sides>\d+)?$')
 DIGITS_RE = re.compile('^\d+$')
 
-def roll_dice(count, sides=6):
-  dice_total = 0
+
+def roll_dice(count, sides=6, keep=None):
+  """
+  Simulates dice rolls.
+
+  @type  count: int > 0
+  @param count: Number of dice to roll
+  @type  sides: int > 0
+  @param sides: Number of sides on each die (default: 6)
+  @type  keep : int > 0
+  @param keep : Number of count dice to keep. Throws out lowest rolls.
+                (default: None, keep all)
+
+  @rtype:  int
+  @return: total rolled
+  """
+
+  rolls = list()
   for i in xrange(0, count):
-    dice_total += random.randint(1, sides)
-  return dice_total
+    rolls.append(random.randint(1, sides))
+  if keep is not None:
+    if keep < count:
+      rolls.sort()
+      diff = count - keep
+      rolls = rolls[diff:]
+
+  return sum(rolls)
 
 
 class Stat(object):

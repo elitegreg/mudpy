@@ -25,6 +25,12 @@ class Rpg_utils_TestCase(unittest.TestCase):
     self.assertEquals(min(*rolls), 2)
     self.assertEquals(max(*rolls), 12)
 
+    rolls = list()
+    for i in xrange(0, 1000):
+      rolls.append(utils.rpg_utils.roll_dice(4, keep=3))
+    self.assertEquals(min(*rolls), 3)
+    self.assertEquals(max(*rolls), 18)
+
   def test_dice_string_parsing(self):
     '''Tests dice string parsing'''
     (dice, constant) = utils.rpg_utils.parse_dice_string('2D+2')

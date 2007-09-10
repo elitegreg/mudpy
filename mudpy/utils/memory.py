@@ -1,12 +1,20 @@
+"""
+A module to get information about memory usage.
+"""
+
 import sys
 
-PAGESIZE = 4096
 
 if sys.platform == 'linux2':
+  PAGESIZE = 4096 #: System page size
 
   def statm():
-    """Returns tuple of size in bytes: (total size, resident, share, text,
-    lib, data)"""
+    """
+    Get the memory usage for this process provided by /proc/self/statm.
+
+    @rtype:  tuple
+    @return: (total_size, resident, shared, text, lib, data) in bytes
+    """
 
     try:
       f = open('/proc/self/statm')
@@ -22,5 +30,5 @@ if sys.platform == 'linux2':
       f.close()
 
 else:
-  raise RuntimeError, "memory.py is only supported on linux"
+  raise RuntimeError("memory.py is only supported on linux")
 

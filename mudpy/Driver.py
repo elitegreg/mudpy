@@ -6,7 +6,6 @@ import os
 import signal
 import sys
 import threading
-import utils.logger_config
 import utils.SignalSlots
 
 from driver.Connections import ConnectionManager

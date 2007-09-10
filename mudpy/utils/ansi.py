@@ -1,5 +1,8 @@
 from string import Template
 
+"""
+This module defines the ANSI terminal codes and support functions
+"""
 
 # CODES:
 ESC                   = chr(27)
@@ -46,16 +49,38 @@ BG_WHITE              = ESC + '[47m'
 BG_DEFAULT            = ESC + '[49m'
 CLEARSCREEN           = ESC + '[2J' + ESC + '[1;1H'
 
-del ESC
 
 current_locals = locals().copy()
-ANSI_MAP = dict([(x, current_locals[x]) for x in current_locals if x[0] != '_'])
-del current_locals
+ANSI_MAP = dict([(x, current_locals[x])
+  for x in current_locals if x[0] != '_']) #: Map of codenames to codes
 
-DEFAULT_MAP = dict([(x, '') for x in ANSI_MAP.keys()])
+DEFAULT_MAP = dict([(x, '')
+  for x in ANSI_MAP.keys()]) #: Map of codenames to empty strings
+
+
+del current_locals
+del x
 
 
 def map_string(s, map = DEFAULT_MAP):
+  """
+  Coverts a templatized string to a string with the template parameters
+  replaced by ANSI codes.
+
+  @type  s: string
+  @param s: Templatized string (see string.Template). Template variables
+            are from the set of ANSI codes in this module.
+  @type  map: dict 
+  @param map: dict of ANSI codename -> ANSI code. Default = DEFAULT_MAP.
+              DEFAULT_MAP maps the codenames to empty string, and thus,
+              removes the markup for non-ANSI terminals. ANSI_MAP can
+              be used to keep the appropriate mapping.
+
+  @rtype:  string
+  @return: string containing appropriate ANSI codes based on the given
+           map
+  """
+
   t = Template(s)
   return t.safe_substitute(map)
 
