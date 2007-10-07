@@ -1,10 +1,11 @@
+import collections
 import logging
 
 class HeartbeatStats(object):
   def __init__(self, stats_period=3600):
     self.__stats_period = stats_period
     self.__last_hb_time = None
-    self.__values = list()
+    self.__values = collections.deque()
 
   def add(self, hb_time):
     if self.__last_hb_time:
@@ -14,10 +15,8 @@ class HeartbeatStats(object):
 
     self.__last_hb_time = hb_time
 
-    if len(self.__values) == self.__stats_period:
-      self.dump_stats()
-      newest_val = self.__values[-1]
-      self.__values = list()
+    while len(self.__values) > self.__stats_period:
+      self.__values.popleft()
 
   def dump_stats(self):
     try:
