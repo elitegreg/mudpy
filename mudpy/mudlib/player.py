@@ -1,13 +1,10 @@
-import Abilities
-import Feats
-import Skills
-import Species
+import body
 
-
-class Body(object):
+class Player(body.Body):
   def __init__(self):
+    super(Player, self).__init__()
     self.__permanents = dict()
-    self.__initialize_body()
+    self.__initialize_player()
 
   def getstate(self):
     """
@@ -17,7 +14,9 @@ class Body(object):
     @return : dictionary state to save
     """
 
-    pass
+    d = super(Player, self).getstate()
+    # save data here
+    return d
 
   def setstate(self, state):
     """
@@ -27,11 +26,12 @@ class Body(object):
     @param state: dictionary state to restore
     """
 
-    self.__initialize_body()
+    super(Player, self).setstate(state)
+    self.__initialize_player()
 
-  def __initialize_body(self):
+  def __initialize_player(self):
     """
-    This method is intended to be called when creating a new body object
+    This method is intended to be called when creating a new player object
     either by init or setstate
     """
 
