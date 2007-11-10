@@ -1,5 +1,10 @@
+import random
 import utils.rpg_utils
 import unittest
+
+
+# Seed with a common seed so that we get predictable results
+random.seed(0)
 
 
 class Rpg_utils_TestCase(unittest.TestCase):
@@ -8,25 +13,25 @@ class Rpg_utils_TestCase(unittest.TestCase):
     1000 rolls'''
 
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 20):
       rolls.append(utils.rpg_utils.roll_dice(1))
     self.assertEquals(min(*rolls), 1)
     self.assertEquals(max(*rolls), 6)
 
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 50):
       rolls.append(utils.rpg_utils.roll_dice(1, 20))
     self.assertEquals(min(*rolls), 1)
     self.assertEquals(max(*rolls), 20)
 
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 90):
       rolls.append(utils.rpg_utils.roll_dice(2))
     self.assertEquals(min(*rolls), 2)
     self.assertEquals(max(*rolls), 12)
 
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 1700):
       rolls.append(utils.rpg_utils.roll_dice(4, keep=3))
     self.assertEquals(min(*rolls), 3)
     self.assertEquals(max(*rolls), 18)
@@ -60,20 +65,20 @@ class Rpg_utils_TestCase(unittest.TestCase):
     '''Tests that Stat()s can be created and roll the correct min/max'''
     s = utils.rpg_utils.Stat({5: 2}, 2)
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 40):
       rolls.append(s.roll())
     self.assertEquals(min(*rolls), 4)
     self.assertEquals(max(*rolls), 12)
 
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 40):
       rolls.append(s.roll(modifier=-10, minimum=0))
     self.assertEquals(min(*rolls), 0)
     self.assertEquals(max(*rolls), 2)
 
     s = utils.rpg_utils.Stat.from_dice_string('2d+1')
     rolls = list()
-    for i in xrange(0, 1000):
+    for i in xrange(0, 50):
       rolls.append(s.roll())
     self.assertEquals(min(*rolls), 3)
     self.assertEquals(max(*rolls), 13)

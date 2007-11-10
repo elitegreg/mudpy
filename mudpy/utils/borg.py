@@ -6,6 +6,9 @@ class Borg(object):
 
   _state = {}
 
+  def __init__(self):
+    super(Borg, self).__init__()
+
   def __new__(cls, *p, **k):
     self = object.__new__(cls, *p, **k)
     self.__dict__ = cls._state

@@ -13,8 +13,8 @@ logger = logging.getLogger('TelnetServer')
 
 
 class TelnetResponses:
-  TELNET_BREAK_RESPONSE = chr(28) + IAC + WILL + TM
-  TELNET_IP_RESPONSE    = chr(127) + IAC + WILL + TM
+  TELNET_BREAK_RESPONSE = IAC + WILL + TM
+  TELNET_IP_RESPONSE    = IAC + WILL + TM
   TELNET_ABORT_RESPONSE = IAC + DM
   TELNET_DO_TM_RESPONSE = IAC + WILL + TM
   TELNET_DO_NAWS        = IAC + DO + NAWS
@@ -55,6 +55,9 @@ class TelnetConnection(asynchat.async_chat):
     self.__intr_handler = Signal()
     self.__term_type_handler = Signal()
     self.__window_size_handler = Signal()
+
+    self.__window_size = (80, 24)
+
     self.set_terminator('\n')
     
     self.__telnet_wrapper.option_callback.connect(self.__handle_option)
@@ -63,13 +66,37 @@ class TelnetConnection(asynchat.async_chat):
     self.push(TelnetResponses.TELNET_DO_NAWS)
     self.push(TelnetResponses.TELNET_DO_TTYPE)
 
-  addr = property(lambda self: self.__addr)
-  disconnect_handler = property(lambda self: self.__disconnect_handler)
-  line_handler = property(lambda self: self.__line_handler)
-  interrupt_handler = property(lambda self: self.__intr_handler)
-  terminal_type_handler = property(lambda self:
-      self.__term_type_handler)
-  window_size_handler = property(lambda self: self.__window_size_handler)
+  ### Properties ###
+
+  @property
+  def addr(self):
+    return self.__addr
+
+  @property
+  def disconnect_handler(self):
+    return self.__disconnect_handler
+
+  @property
+  def line_handler(self):
+    return self.__line_handler
+
+  @property
+  def interrupt_handler(self):
+    return self.__intr_handler
+
+  @property
+  def terminal_type_handler(self):
+    return self.__term_type_handler
+
+  @property
+  def window_size(self):
+    return self.__window_size
+
+  @property
+  def window_size_handler(self):
+    return self.__window_size_handler
+
+  ### End of Properties ###
 
   def disable_local_echo(self):
     self.push(TelnetResponses.TELNET_WILL_ECHO)
@@ -157,7 +184,8 @@ class TelnetConnection(asynchat.async_chat):
         else:
           width = 80
           height = 24
-        self.__window_size_handler(width, height)
+        self.__window_size = (width, height)
+        self.__window_size_handler()
       elif sbdata[0] == TTYPE:
         if sbdata[1] == 0:
           termtype = sbdata[2:]
@@ -180,7 +208,13 @@ class TelnetServer(asyncore.dispatcher):
     logger.debug('Bound and Listening (%s:%s)', bindaddr,
         port)
 
-  connect_handler = property(lambda self: self.__connect_handler)
+  ### Properties ###
+
+  @property
+  def connect_handler(self):
+    return self.__connect_handler
+
+  ### End of Properties ###
 
   def handle_accept(self):
     channel, addr = self.accept()

@@ -1,5 +1,7 @@
 import asynchat
+import errno
 import Queue
+import socket
 import sys
 import telnetlib
 import threading
@@ -15,14 +17,14 @@ from reactor.timed_event import Timed_Event
 
 C_MSG_LINE_1 = 'Hello World!\n'
 C_MSG_LINE_2 = 'This is a test.\n'
-C_OPT_1 = telnetlib.IAC + telnetlib.BRK
-C_OPT_2 = telnetlib.IAC + telnetlib.IP
-C_OPT_3 = telnetlib.IAC + telnetlib.AYT
-C_OPT_4 = telnetlib.IAC + telnetlib.AO
-C_OPT_5 = telnetlib.IAC + telnetlib.WILL + telnetlib.TTYPE
-C_OPT_6 = telnetlib.IAC + telnetlib.WILL + telnetlib.LINEMODE
-C_OPT_7 = telnetlib.IAC + telnetlib.WILL + telnetlib.SGA
-C_OPT_8 = telnetlib.IAC + telnetlib.WONT + telnetlib.LINEMODE
+C_OPT_BRK    = telnetlib.IAC + telnetlib.BRK
+C_OPT_IP     = telnetlib.IAC + telnetlib.IP
+C_OPT_AYT    = telnetlib.IAC + telnetlib.AYT
+C_OPT_AO     = telnetlib.IAC + telnetlib.AO
+C_WILL_TTYPE = telnetlib.IAC + telnetlib.WILL + telnetlib.TTYPE
+C_WILL_LM    = telnetlib.IAC + telnetlib.WILL + telnetlib.LINEMODE
+C_WILL_SGA   = telnetlib.IAC + telnetlib.WILL + telnetlib.SGA
+C_WONT_LM    = telnetlib.IAC + telnetlib.WONT + telnetlib.LINEMODE
 C_MSG_QUIT = 'QUIT\n'
 
 S_MSG_LINE_1 = 'Yet another line\n'
@@ -32,6 +34,7 @@ S_MSG_LINE_2 = 'Test me\n'
 class TelnetWrapper(telnetlib.Telnet):
   def __init__(self, host, port, option_callback=None):
     telnetlib.Telnet.__init__(self, host, port)
+    self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_OOBINLINE, 1)
     if option_callback:
       self.set_option_negotiation_callback(option_callback)
 
@@ -62,7 +65,7 @@ class TelnetClient(asynchat.async_chat):
       return ''
     except socket.error, why:
       # winsock sometimes throws ENOTCONN
-      if why[0] in [ECONNRESET, ENOTCONN, ESHUTDOWN]:
+      if why[0] in [errno.ECONNRESET, errno.ENOTCONN, errno.ESHUTDOWN]:
         self.handle_close()
         return ''
       else:
@@ -85,6 +88,10 @@ class TelnetClient(asynchat.async_chat):
 
   def handle_error(self):
     raise sys.exc_value
+
+  def handle_expt(self):
+    # recv oob data and discard, probably an ABORT
+    pass
 
 
 class TestableTelnetConnection(TelnetConnection):
@@ -149,11 +156,14 @@ class TelnetServerTestCase(unittest.TestCase):
       self.ttypes += 1
       self.ttype = ttype
 
-    def window_size_handler(self, width, height):
+    def window_size_handler(self):
       self.ws += 1
-      self.width = width
-      self.height = height
+      self.window_size = self.conn.window_size
 
+
+  def assertEquals(self, arg1, arg2, arg3 = ''):
+    msg = '%s: [%s != %s]' % (arg3, arg1, arg2)
+    super(TelnetServerTestCase, self).assertEquals(arg1, arg2, msg)
 
   def testTelnetServer(self):
     handler = TelnetServerTestCase.ConnHandler(
@@ -164,15 +174,14 @@ class TelnetServerTestCase(unittest.TestCase):
     client = TelnetClient('127.0.0.1', 65000)
     client.push(C_MSG_LINE_1)
     client.push(C_MSG_LINE_2)
-    client.push(C_OPT_1)
-    client.push(C_OPT_2)
-    client.push(C_OPT_3)
-    #client.push(C_OPT_4)
-    client.push(C_OPT_5)
-    client.push(C_OPT_6)
-    client.push(C_OPT_7)
-    client.push(C_OPT_8)
-    client.push(C_MSG_QUIT)
+    client.push(C_OPT_BRK)
+    client.push(C_OPT_IP)
+    client.push(C_OPT_AYT)
+    client.push(C_OPT_AO)
+    client.push(C_WILL_TTYPE)
+    client.push(C_WILL_LM)
+    client.push(C_WILL_SGA)
+    client.push(C_WONT_LM)
 
     time_out = False
 
@@ -180,34 +189,46 @@ class TelnetServerTestCase(unittest.TestCase):
       time_out = True
       reactor.stop_reactor()
 
-    Timed_Event.from_delay(timed_out, 5)
+    Timed_Event.from_delay(timed_out, 0.2)
 
-    reactor.start_reactor()
-    reactor.close()
+    def quit_conn(now):
+      client.push(C_MSG_QUIT)
+
+    Timed_Event.from_delay(quit_conn, 0.1)
+
+    try:
+      reactor.start_reactor()
+      reactor.close()
+    except Exception, e:
+      print 'Exception:', e
 
     self.assertFalse(time_out, 'Test Timed Out ')
+
     self.assertEquals(handler.connects, 1)
     self.assertEquals(handler.disconnects, 1)
+
     self.assertEquals(len(handler.lines), 3,
-        'Server Received Line Count')
+        'Server Received Line Count (lines = %s)' % handler.lines)
+
     self.assertEquals(handler.lines[0], C_MSG_LINE_1.rstrip(),
         'Server Received Line 1')
     self.assertEquals(handler.lines[1], C_MSG_LINE_2.rstrip(),
         'Server Received Line 2')
     self.assertEquals(handler.lines[2], C_MSG_QUIT.rstrip(),
         'Server Received Line 3')
+
     self.assertEquals(len(client.lines), 4,
-        'Client Received Line Count')
+        'Client Received Line Count (lines = %s)' % client.lines)
     self.assertEquals(client.lines[0], S_MSG_LINE_1.rstrip(),
         'Client Received Line 1')
     self.assertEquals(client.lines[1], S_MSG_LINE_2.rstrip(),
         'Client Received Line 2')
-    self.assertEquals(client.lines[2], '\x1c\x7f',
-        'Client Received Line 3')
+    self.assertEquals(client.lines[2], '',
+        'Client Received Line 3 (newline from AYT response)')
     self.assertEquals(client.lines[3], '[-Yes-]',
-        'Client Received Line 4')
-    self.assertEquals(len(client.options), 11,
-        'Client options received count')
+        'Client Received Line 4 (AYT response)')
+
+
     self.assertEquals(client.options[0], (telnetlib.DO, telnetlib.NAWS),
         'Client DO NAWS not received')
     self.assertEquals(client.options[1], (telnetlib.DO, telnetlib.TTYPE),
@@ -216,20 +237,23 @@ class TelnetServerTestCase(unittest.TestCase):
         'Client WILL ECHO not received')
     self.assertEquals(client.options[3], (telnetlib.WONT, telnetlib.ECHO),
         'Client WONT ECHO not received')
+    self.assertEquals(handler.ints, 1, 'Handler interrupts not fired')
     self.assertEquals(client.options[4], (telnetlib.WILL, telnetlib.TM),
-        'Client WILL TM not received')
+        'Client WILL TM not received (from BRK/IP)')
     self.assertEquals(client.options[5], (telnetlib.WILL, telnetlib.TM),
-        'Client WILL TM not received')
-    self.assertEquals(client.options[6], (telnetlib.SB, chr(0)),
-        'Client SB not received')
-    self.assertEquals(client.options[7], (telnetlib.SE, chr(0),
-        telnetlib.TTYPE + chr(1)), 'Client SE not received')
-    self.assertEquals(client.options[8], (telnetlib.DONT, telnetlib.LINEMODE),
-        'Client DONT LINEMODE not received')
-    self.assertEquals(client.options[9], (telnetlib.DONT, telnetlib.SGA),
-        'Client DONT LINEMODE not received')
-    self.assertEquals(client.options[10], (telnetlib.DONT, telnetlib.LINEMODE),
-        'Client DONT LINEMODE not received')
+        'Client WILL TM not received (from BRK/IP)')
+    self.assertEquals(client.options[6], (telnetlib.DM, chr(0)),
+        'Client DM not received')
+    self.assertEquals(client.options[7], (telnetlib.SB, chr(0)),
+        'Client SB (TTYPE HEADING) not received')
+    self.assertEquals(client.options[8], (telnetlib.SE, chr(0),
+        telnetlib.TTYPE + chr(1)), 'Client TTYPE not received')
+    self.assertEquals(client.options[9], (telnetlib.DONT, telnetlib.LINEMODE),
+        'Client DONT LINEMODE not received 1')
+    self.assertEquals(client.options[10], (telnetlib.DONT, telnetlib.SGA),
+        'Client DONT SGA not received')
+    self.assertEquals(client.options[11], (telnetlib.DONT, telnetlib.LINEMODE),
+        'Client DONT LINEMODE not received 2')
     self.assertEquals(handler.connproxy(), None,
         'Client connection object not garbage collected')
 
