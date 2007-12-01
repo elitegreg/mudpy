@@ -26,13 +26,11 @@ class weaklist(list):
 
 
 class Object(object):
-  def __init__(self, dbname, type, id):
+  def __init__(self, oid):
     super(Object, self).__init__()
-    self.__dbname = dbname
-    self.__id = None
+    self.__oid = None
     self.__inventory = weaklist(self.__de_ref)
     self.__environment = None
-    self.__type = type
 
   def __de_ref(self, obj):
     cnt = self.__inventory.count(obj)
@@ -50,13 +48,11 @@ class Object(object):
   environment = property(lambda self: self.__environment,
                          __environment_set)
 
-  @property
-  def dbname(self):
-    raise self.__dbname
+  def __oid_set(self, newoid):
+    self.__oid = newoid
 
-  @property
-  def id(self):
-    return self.__id
+  oid = property(lambda self: self.__oid,
+                 __oid_set)
 
   @property
   def inventory(self):
@@ -65,15 +61,14 @@ class Object(object):
   def reset(self):
     pass
 
+  def restore(self, propdict):
+    raise NotImplementedError
+
   def save(self):
     raise NotImplementedError
 
   def setup(self):
     pass
-
-  @property
-  def type(self):
-    return self.__type
 
   def weakref(self, callback=None):
     return weakref.ref(self, callback)
