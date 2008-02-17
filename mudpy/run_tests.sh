@@ -21,7 +21,7 @@ do
 done
 
 # Check coverage
-./check_coverage.py
+tools/check_coverage.py
 
 if [ $? -ne 0 ]
 then

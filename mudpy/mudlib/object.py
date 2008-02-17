@@ -58,6 +58,10 @@ class Object(object):
   def inventory(self):
     return self.__inventory    
 
+  @property
+  def props(self):
+    raise NotImplementedError
+
   def reset(self):
     pass
 

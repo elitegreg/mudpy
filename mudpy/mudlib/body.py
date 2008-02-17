@@ -1,39 +1,27 @@
 import Abilities
 import Feats
+import object
 import Skills
 import Species
 
 
-class Body(object):
+class Body(object.Object):
   def __init__(self):
     self.__permanents = dict()
-    self.__initialize_body()
 
-  def getstate(self):
-    """
-    This method is called when saving this object.
+  @property
+  def props(self):
+    return self.__permanents
 
-    @rtype  : dict
-    @return : dictionary state to save
-    """
+  def save(self):
+    raise NotImplementedError
 
-    pass
+  def reset(self):
+    super(Body, self).reset()
 
-  def setstate(self, state):
-    """
-    This method is called when restoring the state of a saved object.
+  def restore(self, propdict):
+    raise NotImplementedError
 
-    @type  state: dict
-    @param state: dictionary state to restore
-    """
-
-    self.__initialize_body()
-
-  def __initialize_body(self):
-    """
-    This method is intended to be called when creating a new body object
-    either by init or setstate
-    """
-
-    pass
+  def setup(self):
+    super(Body, self).setup()
 

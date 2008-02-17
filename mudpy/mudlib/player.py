@@ -1,39 +1,43 @@
 import body
+from utils.sha1_passwd import *
 
 class Player(body.Body):
   def __init__(self):
     super(Player, self).__init__()
-    self.__permanents = dict()
-    self.__initialize_player()
+    self.props.setdefault('nouns', list()).append('player')
 
-  def getstate(self):
-    """
-    This method is called when saving this object.
+  def check_password(self, password):
+    return compare(self.password, password)
 
-    @rtype  : dict
-    @return : dictionary state to save
-    """
+  @property
+  def email(self):
+    return self.props.get('name')
 
-    d = super(Player, self).getstate()
-    # save data here
-    return d
+  @property
+  def name(self):
+    return self.props.get('name')
 
-  def setstate(self, state):
-    """
-    This method is called when restoring the state of a saved object.
+  def new_player(self, name, password, email):
+    self.props['name'] = name
+    self.props['password'] = passwd(password)
+    self.props['email'] = email
+    self.props.setdefault('nouns', list()).append(name)
 
-    @type  state: dict
-    @param state: dictionary state to restore
-    """
+  @property
+  def password(self):
+    return self.props.get('password')
 
-    super(Player, self).setstate(state)
-    self.__initialize_player()
+  def quit(self):
+    raise NotImplementedError
 
-  def __initialize_player(self):
-    """
-    This method is intended to be called when creating a new player object
-    either by init or setstate
-    """
+  def save(self):
+    raise NotImplementedError
 
-    pass
+  def reset(self):
+    super(Player, self).reset()
 
+  def restore(self, propdict):
+    raise NotImplementedError
+
+  def setup(self):
+    super(Player, self).setup()

@@ -2,7 +2,7 @@
 import sys
 
 from ConfigParser import SafeConfigParser
-from utils.coverage import the_coverage
+from coverage import the_coverage
 
 
 if __name__ == '__main__':
@@ -11,7 +11,7 @@ if __name__ == '__main__':
     sys.exit(1)
 
   parser = SafeConfigParser()
-  if len(parser.read('coverage_tests.ini')) == 0:
+  if len(parser.read('tools/coverage_tests.ini')) == 0:
     print >> sys.stderr, "No coverage_tests.ini file found"
     sys.exit(1)
 

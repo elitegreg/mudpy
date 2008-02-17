@@ -89,6 +89,7 @@ class Object_ID(object):
 
 
 class ObjectCache(utils.borg.Borg):
+  __global_clone_id = 1
   __id_to_obj = dict()
 
   def __init__(self):
@@ -106,11 +107,11 @@ class ObjectCache(utils.borg.Borg):
         else:
           # request to clone an object
           base_obj_oid = Object_ID(oid)
-          base_obj_oid.drop_clone()
           base_obj = self.get_obj(base_obj_oid.oid, create)
           obj = copy.deepcopy(base_obj)
-          obj.oid = oid_obj.oid
+          obj.oid = oid_obj.oid + str(self.__global_clone_id)
           obj.setup() # setup the newly created object
+          self.__global_clone_id += 1
       else:
         obj = DB().load_obj(oid, create)
 
