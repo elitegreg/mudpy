@@ -20,7 +20,8 @@ if __name__ == '__main__':
   retval = 0
 
   for file_name in parser.sections():
-    _, statements, _, missing, readable = the_coverage.analysis2(file_name)
+    _, statements, exclude, missing, readable = the_coverage.analysis2(file_name)
+    the_coverage.annotate_file(file_name, statements, exclude, missing)
     n = len(statements)
     m = n - len(missing)
     if n > 0:

@@ -24,7 +24,7 @@ class ConnectionManager(object):
   def telnet_connect_handler(self, conn):
     logger.info('Handling connect from %s', conn.addr)
     conn.disconnect_handler.connect(self.telnet_disconnect_handler)
-    auth = Auth.AuthDaemon((lambda login, password: return True), self, conn,
+    auth = Auth.AuthDaemon((lambda login, password: True), self, conn,
         self.__max_login_tries)
     self.__auths[conn] = auth
 

@@ -4,7 +4,6 @@ from utils.sha1_passwd import *
 class Player(body.Body):
   def __init__(self):
     super(Player, self).__init__()
-    self.props.setdefault('nouns', list()).append('player')
 
   def check_password(self, password):
     return compare(self.password, password)
@@ -21,7 +20,7 @@ class Player(body.Body):
     self.props['name'] = name
     self.props['password'] = passwd(password)
     self.props['email'] = email
-    self.props.setdefault('nouns', list()).append(name)
+    self.props.setdefault('nouns', set()).add(name.lower())
 
   @property
   def password(self):

@@ -1,6 +1,9 @@
+import hashlib
 import random
-import sha
 import string
+
+
+hash_algo = hashlib.sha1
 
 
 def passwd(password, salt=None):
@@ -9,7 +12,7 @@ def passwd(password, salt=None):
     for c in random.sample(string.printable, 4):
       salt = salt + c
 
-  return "%s%s" % (salt, sha.new(salt + password).hexdigest())
+  return "%s%s" % (salt, hash_algo(salt + password).hexdigest())
 
 
 def compare(salted_hash, password):
