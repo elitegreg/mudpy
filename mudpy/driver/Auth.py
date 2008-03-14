@@ -1,62 +1,100 @@
-from datetime import datetime
-from datetime import timedelta
+import bsddb
+import shelve
+import signals
+import utils.passwd_tool
+
+from AuthStates import *
 from reactor import timed_event
 
 
-DEFAULT_TIMEOUT = 30
+class PasswordDB(object):
+  def __init__(self, passwd_file):
+    super(PasswordDB, self).__init__()
+    btree = bsddb.btopen(passwd_file)
+    self.__db = shelve.BsdDbShelf(btree, protocol=2)
+
+  def __contains__(self, user):
+    return user in self.__db
+
+  def compare(self, user, passwd):
+    p = self.__db.get(user)
+    if not p:
+      raise KeyError('Password for user %s does not exist' % user)
+    return utils.passwd_tool.compare(p, passwd)
+
+  def save(self, user, passwd):
+    self.__db[user] = utils.passwd_tool.passwd(passwd)
+    self.__db.sync()
+
+
+class AuthSession(object):
+  def __init__(self, auth_daemon, conn, max_tries, timeout):
+    self.__auth_daemon = auth_daemon
+    self.__conn = conn
+    self.__tries = max_tries
+    self.__timeout = timeout
+    self.__state = LoginPrompt(self, conn)
+    self.__timer = Timed_Event.from_delay(self, timeout)
+
+    conn.connect_signals(self)
+
+  @property
+  def passwddb(self):
+    return self.__auth_daemon.passwddb
+
+  @proptery
+  def tries(self):
+    return self.__tries
+
+  def decrement_tries(self):
+    self.__tries -= 1
+
+  def handle_disconnect(self, conn):
+    if self.__timer:
+      self.__timer.cancel()
+
+    # this should decrement ref count and delete the AuthSession:
+    self.__auth_daemon.done_auth(conn)
+
+  def handle_interrupt(self):
+    self.__timer += self.__timeout
+    self.__state = LoginPrompt(self, self.__conn)
+
+  def handle_line(self, line):
+    self.__timer += self.__timeout
+    newstate = None
+
+    try:
+      newstate = self.__state.handle_line(line)
+    except StopIteration: 
+      pass
+
+    if newstate is None:
+      self.__auth_daemon.done_auth(conn)
+    else:
+      self.__state = newstate
+
+  def handle_timeout(self, now):
+    self.__conn.push('Timeout....\n')
+    self.__conn.close_when_done()
+    self.__auth_daemon.done_auth(self.__conn)
 
 
 class AuthDaemon(object):
-  def __init__(self, check_pass_fun, conn_mgr, conn, max_tries=3):
-    self.__check_pass_fun = check_pass_fun
-    self.__conn_mgr = conn_mgr
-    self.__conn = conn
+  def __init__(self, passwd_db, max_tries=3, timeout=30):
+    self.__passwd_db = passwd_db
     self.__tries = max_tries
-    self.__conn.line_handler.connect(self.handle_input)
-    self.__conn.push('login: ')
-    self.__store = dict()
-    self.__state = AuthDaemon.login_state_handle_input
-    self.__timeout = timed_event.Timed_Event.from_delay(
-        self.timed_out, DEFAULT_TIMEOUT)
+    self.__timeout = timeout
+    self.__auths = dict()
+    signals.connection_signal.connect(self.auth)
 
-  def close(self):
-    self.__conn.line_handler.disconnect(self.handle_input)
-    self.__timeout.cancel()
-    del self.__timeout
+  @property
+  def passwddb(self):
+    return self.__passwd_db
 
-  def handle_input(self, inp):
-    self.__timeout.set_delay(DEFAULT_TIMEOUT)
-    self.__state = self.__state(self, self.__conn, inp)
-    if self.__state is None:
-      login = self.__store['login']
-      auth = self.__check_pass_fun.auth_user(login, self.__store['password'])
-      if auth:
-        self.close()
-        self.__conn_mgr.user_authentication(True, self.__conn, login)
-      else:
-        if self.__tries == 1:
-          self.close()
-          self.__conn.push('Login failed...')
-          self.__conn_mgr.user_authentication(False, self.__conn, login)
-        else:
-          self.__conn.push('Login failed, try again, login: ')
-          self.__state = AuthDaemon.login_state_handle_input
-          self.__tries -= 1
+  def auth(self, conn):
+    self.__auths[conn] = AuthSession(self, conn, self.__tries, self.__timeout)
 
-  def login_state_handle_input(self, conn, cmd):
-    login = cmd.strip()
-    self.__store['login'] = login.lower()
-    conn.push("%s's password: " % login)
-    conn.disable_local_echo()
-    return AuthDaemon.password_state_handle_input
-
-  def password_state_handle_input(self, conn, cmd):
-    self.__store['password'] = cmd
-    conn.enable_local_echo()
-    return None
-
-  def timed_out(self, now):
-    self.close()
-    self.__conn.push('Login timed out...')
-    self.__conn_mgr.user_authentication(False, self.__conn, 'timeout')
+  def done_auth(self, conn):
+    auth = self.__auths.pop(conn, None)
 

@@ -196,6 +196,46 @@ class TelnetConnection(asynchat.async_chat):
         # TODO Should callback here to pass suboptions
         #pass
 
+  def connect_signals(self, obj):
+    'Connects the signals to default functions on an object'
+
+    disconnect = hasattr(obj, 'handle_disconnect')
+    interrupt  = hasattr(obj, 'handle_interrupt')
+    line       = hasattr(obj, 'handle_line')
+    ttype      = hasattr(obj, 'handle_ttype')
+    windowsize = hasattr(obj, 'handle_window_size')
+
+    if disconnect:
+      self.__disconnect_handler.connect(obj.handle_disconnect)
+    if interrupt:
+      self.__intr_handler.connect(obj.handle_interrupt)
+    if line:
+      self.__line_handler.connect(obj.handle_line)
+    if ttype:
+      self.__term_type_handler.connect(obj.handle_ttype)
+    if windowsize:
+      self.__window_size_handler.connect(obj.handle_window_size)
+
+  def disconnect_signals(self, obj):
+    'Connects the signals to default functions on an object'
+
+    disconnect = hasattr(obj, 'handle_disconnect')
+    interrupt  = hasattr(obj, 'handle_interrupt')
+    line       = hasattr(obj, 'handle_line')
+    ttype      = hasattr(obj, 'handle_ttype')
+    windowsize = hasattr(obj, 'handle_window_size')
+
+    if disconnect:
+      self.__disconnect_handler.disconnect(obj.handle_disconnect)
+    if interrupt:
+      self.__intr_handler.disconnect(obj.handle_interrupt)
+    if line:
+      self.__line_handler.disconnect(obj.handle_line)
+    if ttype:
+      self.__term_type_handler.disconnect(obj.handle_ttype)
+    if windowsize:
+      self.__window_size_handler.disconnect(obj.handle_window_size)
+
 
 class TelnetServer(asyncore.dispatcher):
   def __init__(self, bindaddr='', port=23):

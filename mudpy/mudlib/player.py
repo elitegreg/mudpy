@@ -5,9 +5,6 @@ class Player(body.Body):
   def __init__(self):
     super(Player, self).__init__()
 
-  def check_password(self, password):
-    return compare(self.password, password)
-
   @property
   def email(self):
     return self.props.get('name')
@@ -16,15 +13,10 @@ class Player(body.Body):
   def name(self):
     return self.props.get('name')
 
-  def new_player(self, name, password, email):
+  def new_player(self, name, email):
     self.props['name'] = name
-    self.props['password'] = passwd(password)
     self.props['email'] = email
     self.props.setdefault('nouns', set()).add(name.lower())
-
-  @property
-  def password(self):
-    return self.props.get('password')
 
   def quit(self):
     raise NotImplementedError
@@ -40,3 +32,4 @@ class Player(body.Body):
 
   def setup(self):
     super(Player, self).setup()
+
