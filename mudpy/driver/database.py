@@ -1,4 +1,5 @@
 import bsddb
+import class_loader
 import copy
 import os.path
 import re
@@ -11,7 +12,7 @@ import utils.borg
 ## Object ID Format
 ## ================
 ##
-## <DB>:<Obj Type>:/path/id[#<int: clone number>]
+## <DB>:/path/id[#<int: clone number>]
 ##
 ## DB: Db File to load/restore
 ## Obj type: string type id (must be registered with DB)
@@ -24,21 +25,21 @@ import utils.borg
 ## E.g.:
 ##
 ## Player:
-##   players.db:player:/players/greg
+##   players.db:/players/greg
 ##
 ## Room:
-##   rooms.db:room:
+##   rooms.db:/some/room/path
 ## 
 ## Weapons:
 ##   # Clone of a broadsword base
-##   objects.db:sword:/broadsword#12345
+##   objects.db:/broadsword#12345
 ##
 ##   # Clone of a pistol
-##   objects.db:gun:/9mm_pistol#9876
+##   objects.db:/9mm_pistol#9876
 ##
 
 # RegEx breaks into db, type, id, clone, clone_id
-OBJECT_ID_FORMAT = re.compile(r'^(?P<dbname>[\w.]+):(?P<type>[\w.]+):' \
+OBJECT_ID_FORMAT = re.compile(r'^(?P<dbname>[\w.]+):' \
     '(?P<id>[\w./]+)((?P<clone>#)(?P<clone_id>\d+)?)?$')
 
 class Object_ID(object):
@@ -53,10 +54,6 @@ class Object_ID(object):
   @property
   def dbname(self):
     return self.__id_split.get('dbname')
-
-  @property
-  def type(self):
-    return self.__id_split.get('type')
 
   @property
   def id(self):
@@ -82,13 +79,12 @@ class Object_ID(object):
           'Object_ID: Trying to add clone id to non-clone')
     cid = str(cid)
     self.__id_split['clone_id'] = cid
-    self.__id = '%s:%s:%s#%s' % (self.dbname, self.type, self.id,
-        cid)
+    self.__id = '%s:%s#%s' % (self.dbname, self.id, cid)
 
   def drop_clone(self):
     self.__id_split.pop('clone')
     self.__id_split.pop('clone_id')
-    self.__id = '%s:%s:%s' % (self.dbname, self.type, self.id)
+    self.__id = '%s:%s' % (self.dbname, self.id)
 
   def __str__(self):
     return self.oid
@@ -105,7 +101,9 @@ class ObjectCache(utils.borg.Borg):
     'This should only be called when testing the object cache!'
     self.__id_to_obj.clear()
 
-  def get_obj(self, oid, create=False):
+  def get_obj(self, oid, create=None):
+    '''Loads an object with given oid. create can be the object
+       class, if an object should be created if one doesn't exist. '''
     oid_obj = Object_ID(oid)
     obj = self.__id_to_obj.get(oid_obj.oid)
     if not obj:
@@ -151,7 +149,6 @@ class DB(utils.borg.Borg):
   DBDIR = None
 
   __dbmap = dict()
-  __typemap = dict()
 
   def __init__(self):
     super(DB, self).__init__()
@@ -178,18 +175,21 @@ class DB(utils.borg.Borg):
       pass
     db.sync()
 
-  def load_obj(self, oid, create_if_needed=False):
+  def load_obj(self, oid, create_if_needed=None):
+    '''Loads an object with given oid. create_if_needed can be the object
+       class, if an object should be created if one doesn't exist. '''
     oid_obj = Object_ID(oid)
     db = self.__get_db(oid_obj.dbname)
     try:
-      data = db[oid_obj.id]
+      data = copy.deepcopy(db[oid_obj.id])
     except KeyError:
-      if not create_if_needed:
+      if create_if_needed:
+        obj_class = create_if_needed
+      else:
         raise
-    
-    obj_class = self.__typemap.get(oid_obj.type)
-    if not obj_class:
-      raise KeyError('Object type not registered: %s' % oid_obj.type)
+    else:
+      obj_class = class_loader.load_class(data['__obj_type__'])
+      data.pop('__obj_type__')
 
     obj = obj_class(oid)
     if create_if_needed:
@@ -199,7 +199,11 @@ class DB(utils.borg.Borg):
     return obj
 
   def save_obj(self, obj):
+    obj_type = '%s.%s' % (obj.__class__.__module__, obj.__class__.__name__)
+
     data = obj.save()
+    data['__obj_type__'] = obj_type
+
     oid_obj = Object_ID(obj.oid)
     if oid_obj.is_clone:
       raise RuntimeError("Cloned object can't be saved")
@@ -207,10 +211,4 @@ class DB(utils.borg.Borg):
     db = self.__get_db(oid_obj.dbname)
     db[oid_obj.id] = data
     db.sync()
-
-  def register_type(self, type, class_type):
-    if not hasattr(class_type, '__call__'):
-      raise TypeError('DB failed to register type %s, not callable' % \
-          type)
-    self.__typemap[type] = class_type
 

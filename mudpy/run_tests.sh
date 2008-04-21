@@ -12,7 +12,7 @@ rm -f $COVERAGE_FILE
 # run tests/
 for t in tests/*.py
 do
-  tools/coverage.py -x ${t}
+  python tools/coverage.py -x ${t}
   if [ $? -ne 0 ]
   then
     echo "ERROR: ${t}"
@@ -21,7 +21,7 @@ do
 done
 
 # Check coverage
-tools/check_coverage.py
+python tools/check_coverage.py
 
 if [ $? -ne 0 ]
 then

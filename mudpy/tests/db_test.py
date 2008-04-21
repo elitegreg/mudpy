@@ -25,9 +25,6 @@ class TestType(object):
     self.data.update(data)
 
 
-DB().register_type('TestType', TestType)
-
-
 class DBTestCase(unittest.TestCase):
   DIR = '_DBTestCase_.tmp'
 
@@ -56,7 +53,7 @@ class DBTestCase(unittest.TestCase):
 
   def test_db(self):
     # set the tests object id:
-    oid = 'test.db:TestType:/testpath/testobj'
+    oid = 'test.db:/testpath/testobj'
 
     # initialize variables
     cache = ObjectCache()
@@ -66,7 +63,7 @@ class DBTestCase(unittest.TestCase):
     self.assertRaises(KeyError, cache.get_obj, oid)
 
     # Now create the object
-    obj = cache.get_obj(oid, create=True)
+    obj = cache.get_obj(oid, create=TestType)
     obj.data.update(DBTestCase.TESTDATA)
     
     # save it
@@ -84,7 +81,7 @@ class DBTestCase(unittest.TestCase):
     # ask the object cache for the object multiple times. Expect to get
     # the same object back (because it is cached)
     obj2 = cache.get_obj(oid)
-    obj3 = cache.get_obj(oid, True)
+    obj3 = cache.get_obj(oid, create=TestType)
 
     # validate is the same object
     self.assertTrue(obj is obj2)
@@ -126,13 +123,13 @@ class DBTestCase(unittest.TestCase):
 
     # clone object
     self.assertRaises(KeyError, cache.get_obj, oid + '#')
-    clone = cache.get_obj(oid + '#', True)
+    clone = cache.get_obj(oid + '#', create=TestType)
 
     # make sure clone id number is set
     int(clone.oid[len(oid)+1:])
 
     # make another clone
-    clone2 = cache.get_obj(oid + '#', True)
+    clone2 = cache.get_obj(oid + '#', create=TestType)
 
     # make sure they aren't the same object, and not same clone
     self.assertFalse(clone is clone2)
@@ -163,24 +160,16 @@ class DBTestCase(unittest.TestCase):
     # try and load deleted object, expect KeyError
     self.assertRaises(KeyError, db.load_obj, oid)
 
-    # make sure bogus registrations fail
-    self.assertRaises(TypeError, db.register_type, 'one', 1)
-
-    # make sure unregistered type fails
-    self.assertRaises(KeyError, db.load_obj,
-        'test.db:Foo:/testpath/testobj', True)
-
     # make sure loading a uncached clone fails
     self.assertRaises(KeyError, cache.get_obj, oid + '#98765')
 
   def test_oid(self):
     self.assertRaises(RuntimeError, Object_ID, 'test.db-obj-/test')
 
-    oid1 = 'test.db:TestType:/testpath/testobj'
+    oid1 = 'test.db:/testpath/testobj'
     oid_obj = Object_ID(oid1)
     self.assertEquals(str(oid_obj), oid1)
     self.assertEquals(oid_obj.dbname, 'test.db')
-    self.assertEquals(oid_obj.type, 'TestType')
     self.assertEquals(oid_obj.id, '/testpath/testobj')
     self.assertFalse(oid_obj.is_clone)
     self.assertTrue(oid_obj.clone_id is None)
@@ -192,7 +181,6 @@ class DBTestCase(unittest.TestCase):
     oid_obj = Object_ID(oid2)
     self.assertEquals(str(oid_obj), oid2)
     self.assertEquals(oid_obj.dbname, 'test.db')
-    self.assertEquals(oid_obj.type, 'TestType')
     self.assertEquals(oid_obj.id, '/testpath/testobj')
     self.assertTrue(oid_obj.is_clone)
     self.assertEquals(oid_obj.clone_id, '12345')

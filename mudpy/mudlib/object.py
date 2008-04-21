@@ -28,7 +28,7 @@ class weaklist(list):
 class Object(object):
   def __init__(self, oid):
     super(Object, self).__init__()
-    self.__oid = None
+    self.__oid = oid
     self.__inventory = weaklist(self.__de_ref)
     self.__environment = None
 
