@@ -48,8 +48,10 @@ class PasswordPrompt(object):
 
 
 class NewUserPrompt(object):
-  def __init__(self, auth_session, conn):
+  def __init__(self, auth_session, conn, question=1, state=None):
     self.__auth_session = auth_session
     self.__conn = conn
+
+    self.__state
     raise NotImplementedError
 
