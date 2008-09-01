@@ -50,7 +50,7 @@ class AuthSession(object):
       self.__state = newstate
 
   def handle_timeout(self, now):
-    self.__conn.push('Timeout....\n')
+    self.__conn.wrapwrite('Timeout....', newlines=1)
     self.__conn.close_when_done()
     self.__auth_daemon.done_auth(self.__conn)
 

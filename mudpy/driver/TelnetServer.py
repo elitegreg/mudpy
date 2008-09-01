@@ -3,6 +3,7 @@ import asyncore
 import logging
 import socket
 import telnetlib
+import textwrap
 
 from telnetlib import AO, AYT, BRK, DM, DO, DONT, ECHO, GA, IAC, \
                       IP, LINEMODE, NAWS, SB, SE, SGA, TM, TTYPE, \
@@ -23,7 +24,7 @@ class TelnetResponses:
   TELNET_WONT_ECHO      = IAC + WONT + ECHO
   TELNET_WILL_ECHO      = IAC + WILL + ECHO
   TELNET_WILL_SGA       = IAC + WILL + SGA
-  TELNET_AYT_RESPONSE   = '\n[-Yes-]\n'
+  TELNET_AYT_RESPONSE   = '\r\n[-Yes-]\r\n'
   TELNET_DONT_LINEMODE  = IAC + DONT + LINEMODE
 
 
@@ -135,15 +136,21 @@ class TelnetConnection(asynchat.async_chat):
     self.__disconnect_handler(self)
     asynchat.async_chat.close(self)
 
-  def write(self, buf):
-    self.push(buf)
+  def wrapwrite(self, buf, newlines=0):
+    width = self.window_size[0]
+    nl = '\r\n' * newlines
+    if len(buf) > width:
+      msg = '\r\n'.join(textwrap.wrap(buf, width)) + nl
+    else:
+      msg = buf + nl
+    self.push(msg)
 
   def __handle_option(self, sock, cmd, opt):
     if cmd == BRK:
       self.push(TelnetResponses.TELNET_BREAK_RESPONSE)
     elif cmd == IP:
-      self.__intr_handler()
       self.push(TelnetResponses.TELNET_IP_RESPONSE)
+      self.__intr_handler()
     elif cmd == AYT:
       self.push(TelnetResponses.TELNET_AYT_RESPONSE)
     elif cmd == AO:

@@ -15,12 +15,14 @@ class LoginPrompt(object):
     self.__auth_session = auth_session
     self.__conn = conn
 
+    conn.enable_local_echo()
+
     if auth_session.tries <= 0:
-      conn.push('Too many tries.... closing....\n')
+      conn.wrapwrite('Too many tries.... closing....', newlines=1)
       conn.close_when_done()
       raise AuthComplete
 
-    conn.push("Username (or 'new'): ")
+    conn.wrapwrite("\r\n\r\nUsername (or 'new'): ")
 
   def handle_line(self, username):
     self.__auth_session.decrement_tries()
@@ -40,18 +42,18 @@ class PasswordPrompt(object):
     self.__conn = conn
     self.__state = kwargs
     conn.disable_local_echo()
-    conn.push('Password: ')
+    conn.wrapwrite('Password: ')
 
   def handle_line(self, password):
     self.__conn.enable_local_echo()
-    self.__conn.push('\n')
+    self.__conn.wrapwrite('', newlines=1)
     if mudlib.player.check_login(database.Session(),
         self.__state['name'], password):
-      self.__conn.push('Login Successful.\n\n')
+      self.__conn.wrapwrite('Login Successful.', newlines=2)
       signals.user_authorized_signal(self.__conn, self.__state['name'])
       return None
     else:
-      self.__conn.push('Incorrect password....\n')
+      self.__conn.wrapwrite('Incorrect password....', newlines=1)
       signals.user_unauthorized_signal(self.__conn, self.__state['name'])
       return LoginPrompt(self.__auth_session, self.__conn)
 
@@ -65,22 +67,24 @@ class NewUserPrompt(object):
     self.__question_num = 0
     self.__question = self.__questionaire.questions[self.__question_num]
 
-    self.__conn.push(self.__questionaire.messages['initial'])
+    self.__conn.wrapwrite(self.__questionaire.messages['initial'],
+        newlines=1)
 
     self.__question.prompt(self.__conn)
 
   def handle_line(self, response):
     try:
-      self.__question.respond(response, self.__state)
+      self.__question.respond(self.__conn, response, self.__state)
       self.__question_num += 1
     except QuestionError, e:
-      self.__conn.push(str(e))
+      self.__conn.wrapwrite(str(e), newlines=1)
 
     if self.__question_num >= len(self.__questionaire.questions):
       cap_name = self.__state['name'].capitalize()
       props = self.__state.copy()
       props['name'] = props['name'].capitalize()
-      self.__conn.push(self.__questionaire.messages['final'] % props)
+      self.__conn.wrapwrite(self.__questionaire.messages['final'] % \
+          props, newlines=1)
       signals.new_user_signal(self.__conn, self.__state)
       return None
     else:

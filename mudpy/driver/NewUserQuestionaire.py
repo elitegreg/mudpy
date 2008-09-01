@@ -16,13 +16,18 @@ class Question(object):
     self.__question_msg = question_msg
     self.__type = None
     self.__field = None
+    self.__choices = None
     self.__check = None
     self.__check_fail_msg = None
-    self.__choices = None
+    self.__no_echo = False
 
   def load(self, config, section, prefix):
     self.__type = config.get(section, '%s_type' % prefix).lower()
     self.__field = config.get(section, '%s_field' % prefix).lower()
+
+    if self.__type == 'choice':
+      self.__choices = config.get(section, '%s_choices' % \
+          prefix).lower().split(',')
     
     if config.has_option(section, '%s_check' % prefix):
       self.__check = config.get(section, '%s_check' % prefix)
@@ -32,24 +37,32 @@ class Question(object):
     if config.has_option(section, '%s_check_fail_msg' % prefix):
       self.__check_fail_msg = \
           config.get(section, '%s_check_fail_msg' % prefix)
-      self.__check_fail_msg += '\n'
     else:
-      self.__check_fail_msg = 'Invalid value\n'
+      self.__check_fail_msg = 'Invalid value'
 
-    if self.__type == 'choice':
-      self.__choices = config.get(section, '%s_choices' % \
-          prefix).lower().split(',')
+    if config.has_option(section, '%s_no_echo' % prefix):
+      self.__no_echo = \
+          config.get(section, '%s_no_echo' % prefix).lower() == 'true'
+    else:
+      self.__no_echo = False
+
 
   def prompt(self, conn):
-    msg = self.__question_msg
-
     if self.__choices:
-      msg = '%s (%s)' % (msg, ','.join(self.__choices))
+      msg = '%s (%s) ' % (self.__question_msg, ','.join(self.__choices))
+    else:
+      msg = self.__question_msg + ' '
 
-    conn.push(msg)
-    conn.push(' ')
+    conn.wrapwrite(msg)
 
-  def respond(self, response, value_dict=None):
+    if self.__no_echo:
+      conn.disable_local_echo()
+
+  def respond(self, conn, response, value_dict=None):
+    if self.__no_echo:
+      conn.wrapwrite('', newlines=1)
+      conn.enable_local_echo()
+
     response = response.lower()
 
     if self.__type == 'int':
@@ -106,9 +119,9 @@ class NewUserQuestionaire(object):
       self.__questions.append(question)
 
     self.__messages['initial'] = parser.get('Messages',
-        'message_initial') + '\n'
+        'message_initial')
     self.__messages['final'] = parser.get('Messages',
-        'message_final') + '\n'
+        'message_final')
 
   @property
   def messages(self):
