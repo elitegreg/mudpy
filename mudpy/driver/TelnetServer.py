@@ -135,6 +135,9 @@ class TelnetConnection(asynchat.async_chat):
     self.__disconnect_handler(self)
     asynchat.async_chat.close(self)
 
+  def write(self, buf):
+    self.push(buf)
+
   def __handle_option(self, sock, cmd, opt):
     if cmd == BRK:
       self.push(TelnetResponses.TELNET_BREAK_RESPONSE)

@@ -1,4 +1,13 @@
+import database
+import mudlib.player
 import signals
+
+from NewUserQuestionaire import NewUserQuestionaire
+from NewUserQuestionaire import QuestionError
+
+
+class AuthComplete(Exception):
+  pass
 
 
 class LoginPrompt(object):
@@ -9,7 +18,7 @@ class LoginPrompt(object):
     if auth_session.tries <= 0:
       conn.push('Too many tries.... closing....\n')
       conn.close_when_done()
-      raise StopIteration
+      raise AuthComplete
 
     conn.push("Username (or 'new'): ")
 
@@ -19,11 +28,8 @@ class LoginPrompt(object):
     username = username.lower()
 
     if username != 'new':
-      if username not in self.__auth_session.passwddb:
-        conn.push('User does not exist....\n')
-        return LoginPrompt(self.__auth_session, self.__conn)
       return PasswordPrompt(self.__auth_session, self.__conn,
-          user=username)
+          name=username)
     else:
       return NewUserPrompt(self.__auth_session, self.__conn)
 
@@ -32,26 +38,47 @@ class PasswordPrompt(object):
   def __init__(self, auth_session, conn, **kwargs):
     self.__auth_session = auth_session
     self.__conn = conn
+    self.__state = kwargs
     conn.disable_local_echo()
     conn.push('Password: ')
 
   def handle_line(self, password):
     self.__conn.enable_local_echo()
-    if self.__auth_session.passwddb.compare(kwargs['user'], password):
-      conn.push('Login Successful.\n\n')
-      signals.user_authorized_signal(self.__conn, kwargs['user'])
+    self.__conn.push('\n')
+    if mudlib.player.check_login(database.Session(), self.__state['name'], password):
+      self.__conn.push('Login Successful.\n\n')
+      signals.user_authorized_signal(self.__conn, self.__state['name'])
       return None
-    else
-      conn.push('Incorrect password....\n')
-      signals.user_unauthorized_signal(self.__conn, kwargs['user'])
-      return LoginPrompt(self.__auth_session, conn)
+    else:
+      self.__conn.push('Incorrect password....\n')
+      signals.user_unauthorized_signal(self.__conn, self.__state['name'])
+      return LoginPrompt(self.__auth_session, self.__conn)
 
 
 class NewUserPrompt(object):
-  def __init__(self, auth_session, conn, question=1, state=None):
+  def __init__(self, auth_session, conn):
     self.__auth_session = auth_session
     self.__conn = conn
+    self.__state = dict()
+    self.__questionaire = NewUserQuestionaire('etc/new_user.cfg')
+    self.__question_num = 0
+    self.__question = self.__questionaire.questions[self.__question_num]
+    self.__question.prompt(self.__conn)
 
-    self.__state
-    raise NotImplementedError
+  def handle_line(self, response):
+    try:
+      self.__question.respond(response, self.__state)
+      self.__question_num += 1
+    except QuestionError, e:
+      self.__conn.push(str(e))
+
+    if self.__question_num >= len(self.__questionaire.questions):
+      signals.new_user_signal(self.__conn, self.__state)
+      return None
+    else:
+      self.__question = self.__questionaire.questions[self.__question_num]
+
+    self.__question.prompt(self.__conn)
+
+    return self
 

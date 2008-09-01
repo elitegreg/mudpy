@@ -1,35 +1,53 @@
 import body
-from utils.sha1_passwd import *
+import utils.passwd_tool
+
+from sqlalchemy import Column, Integer, Text, Table
+from sqlalchemy.orm import mapper
+
 
 class Player(body.Body):
-  def __init__(self):
+  # Database fields
+  name     = None
+  password = None
+  email    = None
+  gender   = None
+  species  = None
+  age      = None
+
+  def __init__(self, name, password, email, gender, species, age):
     super(Player, self).__init__()
-
-  @property
-  def email(self):
-    return self.props.get('name')
-
-  @property
-  def name(self):
-    return self.props.get('name')
-
-  def new_player(self, name, email):
-    self.props['name'] = name
-    self.props['email'] = email
-    self.props.setdefault('nouns', set()).add(name.lower())
-
-  def quit(self):
-    raise NotImplementedError
-
-  def save(self):
-    raise NotImplementedError
+    self.name     = name
+    self.password = utils.passwd_tool.passwd(password)
+    self.email    = email
+    self.gender   = gender
+    self.species  = species
+    self.age      = age
 
   def reset(self):
     super(Player, self).reset()
 
-  def restore(self, propdict):
-    raise NotImplementedError
-
   def setup(self):
     super(Player, self).setup()
+    print 'Player setup() called'
+
+
+def register_table(metadata):
+  players_table = Table('players', metadata,
+      Column('id', Integer, primary_key=True),
+      Column('name', Text, index=True),
+      Column('password', Text),
+      Column('email', Text),
+      Column('gender', Text),
+      Column('species', Text),
+      Column('age', Integer))
+
+  mapper(Player, players_table)
+
+
+def check_login(db_session, user, password):
+  for row in db_session.query(Player.password).filter(
+      Player.name == user.lower()):
+    return utils.passwd_tool.compare(row.password, password)
+  return None
+
 
