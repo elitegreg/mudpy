@@ -51,3 +51,10 @@ def check_login(db_session, user, password):
   return None
 
 
+def is_unused_name(db_session, user):
+  for row in db_session.query(Player.name).filter(
+      Player.name == user.lower()):
+    return False
+  return True
+
+

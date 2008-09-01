@@ -45,7 +45,8 @@ class PasswordPrompt(object):
   def handle_line(self, password):
     self.__conn.enable_local_echo()
     self.__conn.push('\n')
-    if mudlib.player.check_login(database.Session(), self.__state['name'], password):
+    if mudlib.player.check_login(database.Session(),
+        self.__state['name'], password):
       self.__conn.push('Login Successful.\n\n')
       signals.user_authorized_signal(self.__conn, self.__state['name'])
       return None
@@ -63,6 +64,9 @@ class NewUserPrompt(object):
     self.__questionaire = NewUserQuestionaire('etc/new_user.cfg')
     self.__question_num = 0
     self.__question = self.__questionaire.questions[self.__question_num]
+
+    self.__conn.push(self.__questionaire.messages['initial'])
+
     self.__question.prompt(self.__conn)
 
   def handle_line(self, response):
@@ -73,6 +77,10 @@ class NewUserPrompt(object):
       self.__conn.push(str(e))
 
     if self.__question_num >= len(self.__questionaire.questions):
+      cap_name = self.__state['name'].capitalize()
+      props = self.__state.copy()
+      props['name'] = props['name'].capitalize()
+      self.__conn.push(self.__questionaire.messages['final'] % props)
       signals.new_user_signal(self.__conn, self.__state)
       return None
     else:

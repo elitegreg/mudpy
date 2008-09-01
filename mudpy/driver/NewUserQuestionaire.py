@@ -1,3 +1,7 @@
+import database
+import mudlib.player
+import re
+
 from ConfigParser import SafeConfigParser
 
 
@@ -12,11 +16,25 @@ class Question(object):
     self.__question_msg = question_msg
     self.__type = None
     self.__field = None
+    self.__check = None
+    self.__check_fail_msg = None
     self.__choices = None
 
   def load(self, config, section, prefix):
     self.__type = config.get(section, '%s_type' % prefix).lower()
     self.__field = config.get(section, '%s_field' % prefix).lower()
+    
+    if config.has_option(section, '%s_check' % prefix):
+      self.__check = config.get(section, '%s_check' % prefix)
+    else:
+      self.__check = None
+
+    if config.has_option(section, '%s_check_fail_msg' % prefix):
+      self.__check_fail_msg = \
+          config.get(section, '%s_check_fail_msg' % prefix)
+      self.__check_fail_msg += '\n'
+    else:
+      self.__check_fail_msg = 'Invalid value\n'
 
     if self.__type == 'choice':
       self.__choices = config.get(section, '%s_choices' % \
@@ -51,6 +69,11 @@ class Question(object):
     else:
       answer = response
 
+    if self.__check:
+      exec self.__check
+      if not check_result:
+        raise QuestionError(self.__check_fail_msg)
+
     if value_dict is not None:
       original = value_dict.get(self.__field)
       if original is not None:
@@ -83,9 +106,9 @@ class NewUserQuestionaire(object):
       self.__questions.append(question)
 
     self.__messages['initial'] = parser.get('Messages',
-        'message_initial')
+        'message_initial') + '\n'
     self.__messages['final'] = parser.get('Messages',
-        'message_final')
+        'message_final') + '\n'
 
   @property
   def messages(self):
