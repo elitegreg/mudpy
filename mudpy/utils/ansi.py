@@ -1,5 +1,19 @@
 from string import Template
 
+COLOR_TERMS = set([
+  'xterm',
+  'xterm-color',
+  'linux',
+  'vt100',
+  'vt102',
+  'vt220',
+  'vt220pc',
+  'vt320',
+  'vt320pc',
+  'vtnt',
+  'ansi',
+  ])
+
 """
 This module defines the ANSI terminal codes and support functions
 """
@@ -83,6 +97,12 @@ def map_string(s, map = DEFAULT_MAP):
 
   t = Template(s)
   return t.safe_substitute(map)
+
+
+def is_color_term(term_type):
+  if term_type.lower() in COLOR_TERMS:
+    return True
+  return False
 
 
 if __name__ == '__main__':

@@ -57,6 +57,7 @@ class TelnetConnection(asynchat.async_chat):
     self.__term_type_handler = Signal()
     self.__window_size_handler = Signal()
 
+    self.__term_type = None
     self.__window_size = (80, 24)
 
     self.set_terminator('\n')
@@ -84,6 +85,10 @@ class TelnetConnection(asynchat.async_chat):
   @property
   def interrupt_handler(self):
     return self.__intr_handler
+
+  @property
+  def termtype(self):
+    return self.__term_type
 
   @property
   def terminal_type_handler(self):
@@ -194,6 +199,8 @@ class TelnetConnection(asynchat.async_chat):
         else:
           width = 80
           height = 24
+        width = max(width, 10) # don't let the user make it too small
+        height = max(height, 10) # don't let the user make it too small
         self.__window_size = (width, height)
         self.__window_size_handler()
       elif sbdata[0] == TTYPE:
@@ -201,6 +208,7 @@ class TelnetConnection(asynchat.async_chat):
           termtype = sbdata[2:]
         else:
           termtype = sbdata[1:]
+        self.__term_type = termtype
         self.__term_type_handler(termtype)
       #else:
         # TODO Should callback here to pass suboptions
@@ -225,6 +233,9 @@ class TelnetConnection(asynchat.async_chat):
       self.__term_type_handler.connect(obj.handle_ttype)
     if windowsize:
       self.__window_size_handler.connect(obj.handle_window_size)
+
+    if hasattr(obj, 'handle_telnet_connected'):
+      obj.handle_telnet_connected()
 
   def disconnect_signals(self, obj):
     'Connects the signals to default functions on an object'

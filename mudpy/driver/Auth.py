@@ -21,15 +21,20 @@ class AuthSession(object):
   def tries(self):
     return self.__tries
 
+  def close(self):
+    # break circular references. The timer and state both refer to us!
+    if self.__conn:
+      self.__auth_daemon.done_auth(self.__conn)
+    if self.__timer:
+      self.__timer.cancel()
+      self.__timer = None
+    self.__state = None
+
   def decrement_tries(self):
     self.__tries -= 1
 
   def handle_disconnect(self, conn):
-    if self.__timer:
-      self.__timer.cancel()
-
-    # this should decrement ref count and delete the AuthSession:
-    self.__auth_daemon.done_auth(self.__conn)
+    self.close()
 
   def handle_interrupt(self):
     self.__timer += self.__timeout
@@ -44,15 +49,14 @@ class AuthSession(object):
     except AuthComplete: 
       pass
 
+    self.__state = newstate # decrements ref count on session
     if newstate is None:
-      self.__auth_daemon.done_auth(self.__conn)
-    else:
-      self.__state = newstate
+      self.close()
 
   def handle_timeout(self, now):
     self.__conn.wrapwrite('Timeout....', newlines=1)
     self.__conn.close_when_done()
-    self.__auth_daemon.done_auth(self.__conn)
+    self.close()
 
 
 class AuthDaemon(object):

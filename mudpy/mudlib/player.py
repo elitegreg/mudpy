@@ -1,4 +1,5 @@
 import body
+import utils.ansi
 import utils.passwd_tool
 
 from sqlalchemy import Column, Integer, Text, Table
@@ -22,13 +23,31 @@ class Player(body.Body):
     self.gender   = gender
     self.species  = species
     self.age      = age
+    self.__conn   = None
+    self.__ansi_map = utils.ansi.DEFAULT_MAP
+
+  def handle_disconnect(self):
+    pass
+
+  def handle_interrupt(self):
+    pass
+
+  def handle_line(self, line):
+    pass
+
+  def handle_telnet_connected(self, conn):
+    self.__conn = conn
+    if utils.ansi.is_color_term(conn.termtype):
+      self.__ansi_map = utils.ansi.ANSI_MAP
 
   def reset(self):
     super(Player, self).reset()
 
   def setup(self):
     super(Player, self).setup()
-    print 'Player setup() called'
+
+  def write(self, buffer):
+    self.__conn.write(buffer)
 
 
 def register_table(metadata):

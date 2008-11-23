@@ -1,4 +1,5 @@
 import Auth
+import ConfigParser
 import database
 import logging
 import logging.config
@@ -46,7 +47,10 @@ def new_user(conn, properties):
   player = mudlib.player.Player(**properties)
   cache = database.ObjectCache()
   cache.save(player)
-  player = cache.lookup(mudlib.player.Player, player.id)
+  id = player.id
+  del player
+  player = cache.lookup(mudlib.player.Player, id)
+  conn.connect_signals(player)
 
   
 server = TelnetServer.TelnetServer(port=12345)
