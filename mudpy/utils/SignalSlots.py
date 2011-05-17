@@ -25,12 +25,7 @@ class Signal:
     self.funchost = []
 
   def __call__(self, *args, **kwargs):
-    slot_count = len(self.slots)
     for (i, slot) in enumerate(self.slots):
-      if i >= slot_count:
-        # this slot has been added since the start of this call,
-        # so we choose to ignore it
-        break
       if slot != None:
         slot(*args, **kwargs)
       else:

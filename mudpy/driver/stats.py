@@ -32,11 +32,11 @@ class HeartbeatStats(object):
         avg = sum_val / cnt_val
       stats = [cnt_val, avg, min_val, max_val]
       stats_msg = \
-          "HeartbeatStats: %s data points\r\n" \
-          "  avg: %s (sec)\r\n" \
-          "  min: %s (sec)\r\n" \
-          "  max: %s (sec)\r\n" + \
-          '\r\n'.join(["  p%s: %s (sec)" % (p, v) for p, v in
+          "HeartbeatStats: %s data points\n" \
+          "  avg: %s (sec)\n" \
+          "  min: %s (sec)\n" \
+          "  max: %s (sec)\n" + \
+          '\n'.join(["  p%s: %s (sec)" % (p, v) for p, v in
             zip(percentiles, p)])
       logging.getLogger('Stats').info(stats_msg, *stats)
     except:

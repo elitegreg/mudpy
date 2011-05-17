@@ -29,21 +29,19 @@ class Timed_Event(object):
   def __cmp__(self, rhs):
     return cmp(self.time_, rhs.time_)
 
-  def __iadd__(self, x):
+  def __add__(self, x):
     if isinstance(x, datetime.timedelta):
       self.time_ += x
     else:
       self.time_ += datetime.timedelta(seconds=x)
     self.reactor_._timed_event_change()
-    return self
 
-  def __isub__(self, x):
+  def __sub__(self, x):
     if isinstance(x, datetime.timedelta):
       self.time_ -= x
     else:
       self.time_ -= datetime.timedelta(seconds=x)
     self.reactor_._timed_event_change()
-    return self
 
   def cancel(self):
     self.reactor_._remove_timed_event(self)

@@ -3,7 +3,6 @@ import asyncore
 import logging
 import socket
 import telnetlib
-import textwrap
 
 from telnetlib import AO, AYT, BRK, DM, DO, DONT, ECHO, GA, IAC, \
                       IP, LINEMODE, NAWS, SB, SE, SGA, TM, TTYPE, \
@@ -24,7 +23,7 @@ class TelnetResponses:
   TELNET_WONT_ECHO      = IAC + WONT + ECHO
   TELNET_WILL_ECHO      = IAC + WILL + ECHO
   TELNET_WILL_SGA       = IAC + WILL + SGA
-  TELNET_AYT_RESPONSE   = '\r\n[-Yes-]\r\n'
+  TELNET_AYT_RESPONSE   = '\n[-Yes-]\n'
   TELNET_DONT_LINEMODE  = IAC + DONT + LINEMODE
 
 
@@ -57,7 +56,6 @@ class TelnetConnection(asynchat.async_chat):
     self.__term_type_handler = Signal()
     self.__window_size_handler = Signal()
 
-    self.__term_type = None
     self.__window_size = (80, 24)
 
     self.set_terminator('\n')
@@ -85,10 +83,6 @@ class TelnetConnection(asynchat.async_chat):
   @property
   def interrupt_handler(self):
     return self.__intr_handler
-
-  @property
-  def termtype(self):
-    return self.__term_type
 
   @property
   def terminal_type_handler(self):
@@ -141,21 +135,12 @@ class TelnetConnection(asynchat.async_chat):
     self.__disconnect_handler(self)
     asynchat.async_chat.close(self)
 
-  def wrapwrite(self, buf, newlines=0):
-    width = self.window_size[0]
-    nl = '\r\n' * newlines
-    if len(buf) > width:
-      msg = '\r\n'.join(textwrap.wrap(buf, width)) + nl
-    else:
-      msg = buf + nl
-    self.push(msg)
-
   def __handle_option(self, sock, cmd, opt):
     if cmd == BRK:
       self.push(TelnetResponses.TELNET_BREAK_RESPONSE)
     elif cmd == IP:
-      self.push(TelnetResponses.TELNET_IP_RESPONSE)
       self.__intr_handler()
+      self.push(TelnetResponses.TELNET_IP_RESPONSE)
     elif cmd == AYT:
       self.push(TelnetResponses.TELNET_AYT_RESPONSE)
     elif cmd == AO:
@@ -199,8 +184,6 @@ class TelnetConnection(asynchat.async_chat):
         else:
           width = 80
           height = 24
-        width = max(width, 10) # don't let the user make it too small
-        height = max(height, 10) # don't let the user make it too small
         self.__window_size = (width, height)
         self.__window_size_handler()
       elif sbdata[0] == TTYPE:
@@ -208,7 +191,6 @@ class TelnetConnection(asynchat.async_chat):
           termtype = sbdata[2:]
         else:
           termtype = sbdata[1:]
-        self.__term_type = termtype
         self.__term_type_handler(termtype)
       #else:
         # TODO Should callback here to pass suboptions
@@ -233,9 +215,6 @@ class TelnetConnection(asynchat.async_chat):
       self.__term_type_handler.connect(obj.handle_ttype)
     if windowsize:
       self.__window_size_handler.connect(obj.handle_window_size)
-
-    if hasattr(obj, 'handle_telnet_connected'):
-      obj.handle_telnet_connected()
 
   def disconnect_signals(self, obj):
     'Connects the signals to default functions on an object'

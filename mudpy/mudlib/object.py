@@ -1,3 +1,4 @@
+import types
 import weakref
 
 
@@ -25,12 +26,11 @@ class weaklist(list):
 
 
 class Object(object):
-  def __init__(self):
+  def __init__(self, oid):
     super(Object, self).__init__()
+    self.__oid = oid
     self.__inventory = weaklist(self.__de_ref)
     self.__environment = None
-    self.__long_desc = None
-    self.__short_desc = None
 
   def __de_ref(self, obj):
     cnt = self.__inventory.count(obj)
@@ -48,20 +48,28 @@ class Object(object):
   environment = property(lambda self: self.__environment,
                          __environment_set)
 
+  def __oid_set(self, newoid):
+    self.__oid = newoid
+
+  oid = property(lambda self: self.__oid,
+                 __oid_set)
+
   @property
   def inventory(self):
     return self.__inventory    
 
   @property
-  def long_description(self):
-    return self.__long_desc
-
-  @property
-  def short_description(self):
-    return self.__short_desc
+  def props(self):
+    raise NotImplementedError
 
   def reset(self):
     pass
+
+  def restore(self, propdict):
+    raise NotImplementedError
+
+  def save(self):
+    raise NotImplementedError
 
   def setup(self):
     pass
