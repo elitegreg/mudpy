@@ -1,5 +1,7 @@
 from .socket import socket
 
+from telnetlib import AO, AYT, BRK, DM, DO, DONT, ECHO, IAC, IP, LINEMODE, NAWS, SB, SGA, SE, TTYPE, TM, WILL, WONT, theNULL
+
 __all__ = ['LineTooLong', 'ConnectionClosed', 'InputStream']
 
 class LineTooLong(IOError): pass
@@ -7,35 +9,44 @@ class ConnectionClosed(IOError): pass
 
 class Interrupt(IOError): pass
 
-class Term(IOError):
+class TerminalType(IOError):
     def __init__(self, term):
       self.term = term
 
 class WindowSize(IOError):
-    def __init__(self, x=80, y=24):
-        self.x = x
-        self.y = y
+    def __init__(self, width=80, height=24):
+        self.width = width
+        self.height = height
 
 
-class TelnetStream(socket):
+class TelnetResponses:
+  TELNET_BREAK_RESPONSE = IAC + WILL + TM
+  TELNET_IP_RESPONSE    = IAC + WILL + TM
+  TELNET_ABORT_RESPONSE = IAC + DM
+  TELNET_DO_TM_RESPONSE = IAC + WILL + TM
+  TELNET_DO_NAWS        = IAC + DO + NAWS
+  TELNET_DO_TTYPE       = IAC + DO + TTYPE
+  TELNET_TERM_QUERY     = IAC + SB + TTYPE + bytes([1]) + IAC + SE
+  TELNET_WONT_ECHO      = IAC + WONT + ECHO
+  TELNET_WILL_ECHO      = IAC + WILL + ECHO
+  TELNET_WILL_SGA       = IAC + WILL + SGA
+  TELNET_AYT_RESPONSE   = '\n[-Yes-]\n'
+  TELNET_DONT_LINEMODE  = IAC + DONT + LINEMODE
+
+
+
+class TelnetStream:
     buffer_size = 1024
 
     def __init__(self, socket):
-        self._rawq = b''
-        self._cookedq = b''
-        self.eof = 0
-        self.iacseq = b'' # Buffer for IAC sequence.
-        self.sb = 0 # flag for SB and SE sequence.
-        self.sbdataq = b''
+        self.__socket = socket
+        self.__rawq = b''
+        self.__dataq = [b'', b'']
+        self.__iacseq = b''
+        self.__sb = 0
 
-        if hasattr(socket, 'recv'):
-            self.recvfun = socket.recv
-        elif hasattr(socket, 'read'):
-            self.recvfun = socket.read
-        elif hasattr(socket, '__call__'):
-            self.recvfun = socket
-        else:
-            raise NotImplemenetedError()
+    def __getattr__(self, attr):
+      return getattr(self.__socket, attr)
 
     def readline(self, endline=b'\n', maxlen=1024):
         """Reads a line from a socket
@@ -44,20 +55,18 @@ class TelnetStream(socket):
         half-line ``ConnectionClosed`` is raised. 
         """
         suflen = len(endline)
+
         while True:
-            idx = self._buf.find(endline)
+            idx = self.__dataq[0].find(endline)
             if idx >= 0:
                 idx += suflen
-                res = self._buf[:idx]
-                self._buf = self._buf[idx:]
+                res = self.__dataq[0][:idx]
+                self.__dataq[0] = self.__dataq[0][idx:]
                 return res
-            oldlen = len(self._buf)
+            oldlen = len(self.__dataq[0])
             if maxlen <= oldlen:
                 raise LineTooLong()
-            chunk = self.recvfun(self.buffer_size)
-            if not chunk:
-                raise ConnectionClosed()
-            self._buf += chunk
+            self.__fill_queue()
 
     def __fill_queue(self):
         """Transfer from raw queue to cooked queue.
@@ -66,67 +75,103 @@ class TelnetStream(socket):
         the midst of an IAC sequence.
 
         """
-        buf = [b'', b'']
-        try:
-            while self.rawq:
-                c = self.rawq_getchar()
-                if not self.iacseq:
-                    if c == theNULL:
-                        continue
-                    if c == b"\021":
-                        continue
-                    if c != IAC:
-                        buf[self.sb] = buf[self.sb] + c
-                        continue
-                    else:
-                        self.iacseq += c
-                elif len(self.iacseq) == 1:
-                    # 'IAC: IAC CMD [OPTION only for WILL/WONT/DO/DONT]'
-                    if c in (DO, DONT, WILL, WONT):
-                        self.iacseq += c
-                        continue
 
-                    self.iacseq = b''
-                    if c == IAC:
-                        buf[self.sb] = buf[self.sb] + c
-                    else:
-                        if c == SB: # SB ... SE start.
-                            self.sb = 1
-                            self.sbdataq = b''
-                        elif c == SE:
-                            self.sb = 0
-                            self.sbdataq = self.sbdataq + buf[1]
-                            buf[1] = b''
-                        if self.option_callback:
-                            # Callback is supposed to look into
-                            # the sbdataq
-                            self.option_callback(self.sock, c, NOOPT)
-                        else:
-                            # We can't offer automatic processing of
-                            # suboptions. Alas, we should not get any
-                            # unless we did a WILL/DO before.
-                            self.msg('IAC %d not recognized' % ord(c))
-                elif len(self.iacseq) == 2:
-                    cmd = self.iacseq[1:2]
-                    self.iacseq = b''
-                    opt = c
-                    if cmd in (DO, DONT):
-                        self.msg('IAC %s %d',
-                            cmd == DO and 'DO' or 'DONT', ord(opt))
-                        if self.option_callback:
-                            self.option_callback(self.sock, cmd, opt)
-                        else:
-                            self.sock.sendall(IAC + WONT + opt)
-                    elif cmd in (WILL, WONT):
-                        self.msg('IAC %s %d',
-                            cmd == WILL and 'WILL' or 'WONT', ord(opt))
-                        if self.option_callback:
-                            self.option_callback(self.sock, cmd, opt)
-                        else:
-                            self.sock.sendall(IAC + DONT + opt)
-        except EOFError: # raised by self.rawq_getchar()
-            self.iacseq = b'' # Reset on EOF
-            self.sb = 0
-            pass
-        self.cookedq = self.cookedq + buf[0]
-        self.sbdataq = self.sbdataq + buf[1]
+        if not self.__rawq:
+            self.__rawq = self.__socket.recv(self.buffer_size)
+            if not self.__rawq:
+                raise ConnectionClosed()
+
+        try:
+          for (i, c) in enumerate(self.__rawq):
+              c = bytes([c])
+              if not self.__iacseq:
+                  if c not in (IAC, theNULL, b"\021"):
+                      self.__dataq[self.__sb] += c
+                  else:
+                      if c == IAC:
+                          self.__iacseq += c
+                      continue
+              elif len(self.__iacseq) == 1:
+                  # 'IAC: IAC CMD [OPTION only for WILL/WONT/DO/DONT]'
+                  if c in (DO, DONT, WILL, WONT):
+                      self.__iacseq += c
+                      continue
+
+                  self.__iacseq = b''
+                  if c == IAC:
+                      self.__dataq[self.__sb] += c
+                  else:
+                      if c == SB: # SB ... SE start.
+                          self.__sb = 1
+                          self.__dataq[self.__sb] = b''
+                      elif c == SE:
+                          self.__sb = 0
+                      self.__handle_option(c, self.__dataq[1])
+              elif len(self.__iacseq) == 2:
+                  cmd = self.__iacseq[1:2]
+                  self.__iacseq = b''
+                  if cmd in (DO, DONT):
+                      self.__handle_option(cmd, c)
+                  elif cmd in (WILL, WONT):
+                      self.__handle_option(cmd, c)
+        finally:
+            self.__rawq = self.__rawq[i+1:]
+
+    def __handle_option(self, cmd, opt):
+        print('__handle_option: %s, %s' % (cmd, opt))
+        if cmd == BRK:
+            self.send(TelnetResponses.TELNET_BREAK_RESPONSE)
+        elif cmd == IP:
+            self.send(TelnetResponses.TELNET_IP_RESPONSE)
+            raise Interrupt()
+        elif cmd == AYT:
+            self.send(TelnetResponses.TELNET_AYT_RESPONSE)
+        elif cmd == AO:
+            self.sock.send(TelnetResponses.TELNET_ABORT_RESPONSE,
+                socket.MSG_OOB)
+        elif cmd == WILL:
+            if opt == TTYPE:
+                self.send(TelnetResponses.TELNET_TERM_QUERY)
+            elif opt == LINEMODE:
+                self.send(TelnetResponses.TELNET_DONT_LINEMODE)
+            elif opt == ECHO or opt == NAWS:
+                # do nothing, don't send DONT
+                pass
+            else:
+                self.send(IAC + DONT + opt)
+        elif cmd == WONT:
+            if opt == LINEMODE:
+                self.send(TelnetResponses.TELNET_DONT_LINEMODE)
+        elif cmd == DO:
+            if opt == TM:
+                self.send(TelnetResponses.TELNET_DO_TM_RESPONSE)
+            elif opt == SGA:
+                self.send(TelnetResponses.TELNET_WILL_SGA)
+            elif opt == ECHO:
+                # do nothing, don't send WONT
+                pass
+            else:
+                self.send(IAC + WONT + opt)
+        elif cmd == DONT:
+            if opt == SGA:
+                raise RuntimeError('Client requested "DONT SGA": not supported')
+        elif cmd == SE:
+            cmd = bytes([opt[0]])
+            if cmd == NAWS:
+                if len(opt) == 5:
+                    width = opt[1] << 16 + opt[2]
+                    height = opt[3] << 16 + opt[4]
+                elif len(opt) == 3:
+                    width = opt[1]
+                    height = opt[2]
+                else:
+                    width = 80
+                    height = 24
+                raise WindowSize(width, height)
+            elif cmd == TTYPE:
+                if opt[1] == 0:
+                    termtype = opt[2:]
+                else:
+                    termtype = opt[1:]
+                raise TerminalType(termtype.decode())
+
