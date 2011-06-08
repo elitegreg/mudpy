@@ -1,46 +1,58 @@
 from khakilet.hub import Hub
 from khakilet.server import Listener
-from khakilet.telnet import ConnectionClosed, Interrupt, LineTooLong, TelnetResponses, TelnetStream, TerminalType, WindowSize
+from khakilet.telnet import ConnectionClosed, Interrupt, LineTooLong, TelnetResponses, TelnetStream, Options, NoEcho
 
 def handle_conn(conn, addr):
     ts = TelnetStream(conn)
 
-    ts.send(TelnetResponses.TELNET_DO_NAWS)
-    ts.send(TelnetResponses.TELNET_DO_TTYPE)
+    ts.request_window_size()
+    ts.request_terminal_type()
+    ts.enable_binary_mode()
+
+    opts = ts.readoptions()
+
+    if opts.term:
+        ts.sendtext('Terminal Type = %s\n' % opts.term)
+    if opts.window_size:
+        ts.sendtext('Window Size = %s x %s\n' % opts.window_size)
+    if ts.output_binary:
+        ts.sendtext('Outputting binary\n')
+    if ts.input_binary:
+        ts.sendtext('Inputting binary\n')
+
+    ts.sendtext('Username: ')
+    username = ts.readline().rstrip()
+    with NoEcho(ts):
+      ts.sendtext('Password: ')
+      password = ts.readline().rstrip()
+      ts.sendtext('\n')
 
     while True:
-      ts.send(b'> ')
-      
       try:
+        ts.sendtext('> ')
         line = ts.readline()
       except ConnectionClosed:
         print('Connection Closed')
         break
       except Interrupt:
-        ts.send(b'\nInterrupt\n')
+        ts.sendtext('\nInterrupt\n')
         continue
       except LineTooLong:
-        ts.send(b'\nERROR: Command too long!\n')
-        continue
-      except TerminalType as t:
-        ts.send(('\nTerminal Type = %s\n' % t.term).encode())
-        continue
-      except WindowSize as w:
-        ts.send(('\nWindow Size = %s x %s\n' % (w.width, w.height)).encode())
+        ts.sendtext('\nERROR: Command too long!\n')
         continue
 
-      line = line.rstrip().decode()
+      line = line.rstrip()
       print('Line = [%s]' % line)
 
       if line == 'foo':
-        ts.send(b'bar\n')
+        ts.sendtext('bar\n')
       elif line == 'bar':
-        ts.send(b'baz\n')
+        ts.sendtext('\u03a7\u03a6\n')
       elif line == 'exit':
         ts.close()
         return
       else:
-        ts.send(b'ERROR: Unknown Command\n')
+        ts.sendtext('ERROR: Unknown Command\n')
 
 if __name__ == '__main__':
     with Hub() as hub:

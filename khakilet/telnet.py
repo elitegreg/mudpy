@@ -1,3 +1,6 @@
+import errno
+import socket as stdsocket
+
 from .socket import socket
 from .util import sleep
 
@@ -11,14 +14,24 @@ class ConnectionClosed(IOError): pass
 
 class Interrupt(IOError): pass
 
-class TerminalType(IOError):
-    def __init__(self, term):
-      self.term = term
+class Options(IOError):
+    def __init__(self, term=None, ws=None):
+        self.__term = term
+        self.__ws   = ws
 
-class WindowSize(IOError):
-    def __init__(self, width=80, height=24):
-        self.width = width
-        self.height = height
+    @property
+    def term(self):
+        return self.__term
+
+    @property
+    def window_size(self):
+        return self.__ws
+
+    def merge(self, opts):
+        if opts.term:
+            self.__term = opts.term
+        if opts.window_size:
+            self.__ws = opts.window_size
 
 
 class TelnetResponses:
@@ -45,10 +58,10 @@ class NoEcho:
         self.__telnetstream = telnetstream
 
     def __enter__(self, *args, **kwargs):
-        self.__telnetstream.send(TelnetResponses.TELNET_WONT_ECHO)
+        self.__telnetstream.send(TelnetResponses.TELNET_WILL_ECHO)
 
     def __exit__(self, *args, **kwargs):
-        self.__telnetstream.send(TelnetResponses.TELNET_WILL_ECHO)
+        self.__telnetstream.send(TelnetResponses.TELNET_WONT_ECHO)
 
 
 BYTE_255 = IAC + IAC
@@ -65,6 +78,7 @@ class TelnetStream:
         self.__sb = 0
         self.__input_binary = False
         self.__output_binary = False
+        self.__binary_requested = False
 
     def __getattr__(self, attr):
       return getattr(self.__socket, attr)
@@ -77,9 +91,22 @@ class TelnetStream:
     def output_binary(self):
       return self.__output_binary
 
-    def readoptions(self, timeout=0.5):
-      sleep(timeout)
-      self.__fill_queue()
+    def readoptions(self, timeout=0.2):
+      opts = Options()
+      while True:
+        sleep(timeout)
+        try:
+            self.__rawq += stdsocket.socket.recv(self.__socket, 4096)
+        except stdsocket.error as e:
+            if e.errno == errno.EWOULDBLOCK:
+              if not self.__rawq:
+                  return opts
+            else:
+                raise
+        try:
+            self.__fill_queue()
+        except Options as newopts:
+            opts.merge(newopts)
 
     def readline(self, binarycodec='utf8', endline='\n', maxlen=1024):
         suffix = endline.encode(binarycodec)
@@ -91,14 +118,18 @@ class TelnetStream:
                 idx += suflen
                 res = self.__dataq[0][:idx]
                 self.__dataq[0] = self.__dataq[0][idx:]
+                if self.output_binary:
+                    self.send(b'\r')
                 return res.decode(
                     binarycodec if self.__input_binary else 'ascii')
             oldlen = len(self.__dataq[0])
             if maxlen <= oldlen:
+                self.__socket.close()
                 raise LineTooLong()
             self.__fill_queue()
 
     def sendtext(self, text, binarycodec='utf8'):
+        text = text.replace('\n', '\r\n')
         if self.__output_binary:
             buf = text.encode(
                 binarycodec, errors='replace').replace(IAC, BYTE_255)
@@ -110,7 +141,9 @@ class TelnetStream:
         self.send(TelnetResponses.TELNET_WONT_BINARY)
 
     def enable_binary_mode(self):
+        self.__binary_requested = True
         self.send(TelnetResponses.TELNET_WILL_BINARY)
+        self.send(TelnetResponses.TELNET_DO_BINARY)
         
     def request_terminal_type(self):
         self.send(TelnetResponses.TELNET_DO_TTYPE)
@@ -182,7 +215,8 @@ class TelnetStream:
                 pass
             elif opt == BINARY:
                 self.__input_binary = True
-                self.send(TelnetResponses.TELNET_DO_BINARY)
+                if not self.__binary_requested:
+                    self.send(TelnetResponses.TELNET_DO_BINARY)
             else:
                 self.send(IAC + DONT + opt)
         elif cmd == WONT:
@@ -200,7 +234,8 @@ class TelnetStream:
                 pass
             elif opt == BINARY:
                 self.__output_binary = True
-                self.send(TelnetResponses.TELNET_WILL_BINARY)
+                if not self.__binary_requested:
+                    self.send(TelnetResponses.TELNET_WILL_BINARY)
             else:
                 self.send(IAC + WONT + opt)
         elif cmd == DONT:
@@ -220,11 +255,11 @@ class TelnetStream:
                 else:
                     width = 80
                     height = 24
-                raise WindowSize(width, height)
+                raise Options(ws=(width, height))
             elif cmd == TTYPE:
                 if opt[1] == 0:
                     termtype = opt[2:]
                 else:
                     termtype = opt[1:]
-                raise TerminalType(termtype.decode())
+                raise Options(term=termtype.decode())
 
