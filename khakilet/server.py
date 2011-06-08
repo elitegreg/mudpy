@@ -1,15 +1,12 @@
-import re
 import os, os.path
 from greenlet import getcurrent
 
-from . import dns, socket
-
-re_ip = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+from . import socket
 
 class Listener(object):
-    def __init__(self, addr, factory, listen_backlog=128, spawn=True, fd=None):
-        if isinstance(addr, str):
-            self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM, 0, fd)
+    def __init__(self, addr, factory, listen_backlog=128, spawn=True, fd=None, pf=socket.AF_INET):
+        if pf == socket.AF_UNIX:
+            self.sock = socket.socket(pf, socket.SOCK_STREAM, 0, fd)
             if fd is None and os.path.exists(addr):
                 try:
                     self.sock.connect(addr)
@@ -19,13 +16,12 @@ class Listener(object):
                     self.sock.close()
                     raise socket.error("Address is still in use")
         else:
-            if not re_ip.match(addr[0]):
-                addr = (dns.gethostbyname(addr[0]), addr[1])
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0, fd)
+            self.sock = socket.socket(pf, socket.SOCK_STREAM, 0, fd)
             if fd is None:
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             if fd is None:
+                print('bind((%s, %s))' % (addr))
                 self.sock.bind(addr)
                 self.sock.listen(listen_backlog)
             self.factory = factory
@@ -71,7 +67,7 @@ if __name__ == '__main__':
             import os
             if os.path.exists('./testsock'):
                 os.unlink('./testsock')
-            all.append(Listener('./testsock', echo))
+            all.append(Listener('./testsock', echo, pf=socket.AF_UNIX))
         print("Listening on", ', '.join(map(repr, map(attrgetter('addr'), all))))
         for val in all:
             hub.spawn(val.serve)

@@ -7,8 +7,8 @@ from socket import * # for convenience
 
 class socket(stdsocket.socket):
     __slots__ = ()
-    def __init__(self, *args):
-        super().__init__(*args)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.setblocking(False)
 
     def connect(self, value):
@@ -61,6 +61,12 @@ class socket(stdsocket.socket):
                 if err.errno in (errno.EWOULDBLOCK, errno.EAGAIN, errno.EINTR):
                     continue
                 raise
+
+    def _wait(self, read=False, write=False):
+        if read:
+          lib.Io(fd=self.fileno(), events=lib.EV_READ).start()
+        if write:
+          lib.Io(fd=self.fileno(), events=lib.EV_WRITE).start()
 
 def fromfd(*args):
     sock = stdsocket.fromfd(*args)

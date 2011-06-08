@@ -1,3 +1,7 @@
+import socket
+
+from socket import AF_INET6
+
 from khakilet.hub import Hub
 from khakilet.server import Listener
 from khakilet.telnet import ConnectionClosed, Interrupt, LineTooLong, TelnetResponses, TelnetStream, Options, NoEcho
@@ -56,6 +60,6 @@ def handle_conn(conn, addr):
 
 if __name__ == '__main__':
     with Hub() as hub:
-        hub.spawn(Listener(('127.0.0.1', 31337), handle_conn).serve)
+        hub.spawn(Listener(('', 31337), handle_conn, pf=AF_INET6).serve)
         hub.switch()
 
