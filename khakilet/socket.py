@@ -1,57 +1,68 @@
-import socket as stdsocket
-import errno
 from . import lib
+from .timeout import Timeout
+
 import greenlet
 
+import errno
+import socket as stdsocket
+
 from socket import * # for convenience
+from socket import timeout as timeout_error
+
 
 class socket(stdsocket.socket):
     __slots__ = ()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setblocking(False)
+    def __wait(self, events, timeout=None):
+        try:
+            with Timeout(timeout if timeout else super().gettimeout()):
+                lib.Io(fd=self.fileno(), events=events).start()
+        except TimeoutError:
+            raise timeout_error
 
-    def connect(self, value):
-        ret = self.connect_ex(value)
+    def connect(self, addr, timeout=None):
+        ret = self.connect_ex(addr)
         if ret == 0:
             return
         if ret != errno.EINPROGRESS:
             raise stdsocket.error(ret)
-        lib.Io(fd=self.fileno(), events=lib.EV_WRITE).start()
+        self.__wait(lib.EV_WRITE, timeout)
 
-    def send(self, value):
+    def send(self, value, timeout=None, *args, **kwargs):
         while True:
-            lib.Io(fd=self.fileno(), events=lib.EV_WRITE)
             try:
-                return super().send(value)
+                return super().send(value, *args, **kwargs)
             except stdsocket.error as err:
-                if err.errno in (errno.EWOULDBLOCK, errno.EAGAIN, errno.EINTR):
-                    continue
-                raise
+                if err.errno not in (errno.EWOULDBLOCK, errno.EAGAIN, errno.EINTR):
+                    raise
+            self.__wait(lib.EV_WRITE, timeout)
 
-    def sendall(self, value):
+    def sendall(self, value, timeout=None, *args, **kwargs):
         while True:
-            bytes = self.send(value)
+            bytes = self.send(value, timeout, *args, **kwargs)
             if bytes >= len(value):
                 return
             value = value[bytes:]
 
-    def recv(self, size):
+    def recv(self, size, timeout=None, *args, **kwargs):
         while True:
             fd = self.fileno()
             if fd < 0:
                 return b''
-            lib.Io(fd=fd, events=lib.EV_READ).start()
+            self.__wait(lib.EV_READ, timeout)
             try:
-                return super().recv(size)
+                return super().recv(size, *args, **kwargs)
             except stdsocket.error as err:
                 if err.errno in (errno.EWOULDBLOCK, errno.EAGAIN, errno.EINTR):
                     continue
                 raise
 
-    def accept(self):
+    def accept(self, timeout=None):
         while True:
-            lib.Io(fd=self.fileno(), events=lib.EV_READ).start()
+            self.__wait(lib.EV_READ, timeout)
             try:
                 sock, addr = super().accept()
                 sock.setblocking(False)
@@ -61,17 +72,6 @@ class socket(stdsocket.socket):
                 if err.errno in (errno.EWOULDBLOCK, errno.EAGAIN, errno.EINTR):
                     continue
                 raise
-
-    def _wait(self, read=False, write=False):
-        if read:
-          lib.Io(fd=self.fileno(), events=lib.EV_READ).start()
-        if write:
-          lib.Io(fd=self.fileno(), events=lib.EV_WRITE).start()
-
-def fromfd(*args):
-    sock = stdsocket.fromfd(*args)
-    sock.__class__ = socket
-    return sock
 
 if __name__ == '__main__':
     from .hub import Hub

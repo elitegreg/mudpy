@@ -2,6 +2,8 @@ import ctypes
 import sys
 from greenlet import getcurrent
 
+from .timeout_error import TimeoutError
+
 EVLOOP_NONBLOCK = 1
 EVLOOP_ONESHOT  = 2
 EVUNLOOP_CANCEL = 0
@@ -46,7 +48,10 @@ class _Watch(ctypes.Structure):
     def start(self):
         branch = self.branch = getcurrent()
         branch.hub.add_watch(self)
-        branch.hub.switch()
+        result = branch.hub.switch()
+
+        if result and result == 'khakilet timeout':
+          raise TimeoutError
 
 ev_callback = ctypes.CFUNCTYPE(None,
     ctypes.POINTER(Loop), ctypes.c_long, ctypes.c_int)
