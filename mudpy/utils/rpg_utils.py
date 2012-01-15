@@ -27,7 +27,7 @@ def roll_dice(count, sides=6, keep=None, random_fun=random.randint):
   """
 
   rolls = list()
-  for i in xrange(0, count):
+  for i in range(0, count):
     rolls.append(random_fun(1, sides))
   if keep is not None:
     if keep < count:
@@ -47,7 +47,7 @@ class Stat(object):
 
   def roll(self, modifier=0, minimum=None):
     dice_total = 0
-    for (sides, count) in self.__dice_map.iteritems():
+    for (sides, count) in self.__dice_map.items():
       dice_total += roll_dice(count, sides)
 
     total = dice_total + self.__constant + modifier
@@ -68,13 +68,13 @@ def parse_dice_string(dice_string):
 
   for token in dice_string.split('+'):
     if len(token) == 0:
-      raise RuntimeError, 'Invalid dice string: %s' % dice_string
+      raise RuntimeError('Invalid dice string: %s' % dice_string)
     if DIGITS_RE.match(token):
       constant += int(token)
     else:
       mo = DICE_RE.match(token)
       if mo is None:
-        raise RuntimeError, 'Invalid dice string: %s' % dice_string
+        raise RuntimeError('Invalid dice string: %s' % dice_string)
 
       count, sides = mo.groups()
 
@@ -84,7 +84,7 @@ def parse_dice_string(dice_string):
       count = int(count)
       sides = int(sides)
 
-      if dice_map.has_key(sides):
+      if sides in dice_map:
         dice_map[sides] += count
       else:
         dice_map[sides] = count

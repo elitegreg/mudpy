@@ -11,18 +11,21 @@ class weaklist(list):
       obj = obj.weakref(self.__callback)
     else:
       obj = obj().weakref(self.__callback)
-    return super(weaklist, self).append(obj)
+    return super().append(obj)
 
   def extend(self, other_list):
-    for item in other_list:
-      self.append(item)
+    if isinstance(other_list, weaklist):
+      super().extend(other_list)
+    else:
+      for item in other_list:
+        self.append(item)
 
   def insert(self, index, obj):
     if not isinstance(obj, weakref.ref):
       obj = obj.weakref(self.__callback)
     else:
       obj = obj().weakref(self.__callback)
-    return super(weaklist, self).insert(obj)
+    return super().insert(obj)
 
 
 class Object(object):
@@ -34,10 +37,10 @@ class Object(object):
 
   def __de_ref(self, obj):
     cnt = self.__inventory.count(obj)
-    for i in xrange(0, cnt):
+    for i in range(0, cnt):
       self.__inventory.remove(obj)
     if self.__environment == obj:
-      self.__environment = None
+      self.__environment = None # TODO we need better logic here!
 
   def __environment_set(self, objweakref):
     if not isinstance(objweakref, weakref.ref):
@@ -66,9 +69,6 @@ class Object(object):
     pass
 
   def restore(self, propdict):
-    raise NotImplementedError
-
-  def save(self):
     raise NotImplementedError
 
   def setup(self):

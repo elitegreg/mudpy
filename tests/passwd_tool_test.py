@@ -1,6 +1,6 @@
 import unittest
 
-from utils.passwd_tool import *
+from mudpy.utils.passwd_tool import *
 
 PASSWD = 'this_is_a_test_passwd12345'
 

@@ -2,7 +2,7 @@ import os
 import shutil
 import unittest
 
-from driver.database import *
+from mudpy.driver.database import *
 
 
 class TestType(object):
