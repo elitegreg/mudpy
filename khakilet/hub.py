@@ -31,10 +31,10 @@ class Hub(greenlet.greenlet):
         lib.Idle().start()
 
     def stop(self):
-        lib.ev_unloop(self.handle, lib.EVUNLOOP_ONE);
+        lib.ev_break(self.handle, lib.EVBREAK_ONE);
 
     def run(self):
-        lib.ev_loop(self.handle, 0)
+        lib.ev_run(self.handle, 0)
         if hasattr(self, '_exception'):
             raise self._exception
 

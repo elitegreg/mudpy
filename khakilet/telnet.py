@@ -7,50 +7,56 @@ from .util import sleep
 from telnetlib import AO, AYT, BINARY, BRK, DM, DO, DONT, ECHO, IAC, IP, \
     LINEMODE, NAWS, SB, SGA, SE, TTYPE, TM, WILL, WONT, theNULL
 
-__all__ = ['LineTooLong', 'ConnectionClosed', 'InputStream']
+__all__ = ['LineTooLong', 'ConnectionClosed', 'Interrupt', 'NoEcho', 'TelnetStream']
 
 class LineTooLong(IOError): pass
 class ConnectionClosed(IOError): pass
 
 class Interrupt(IOError): pass
 
-class Options(IOError):
-    def __init__(self, term=None, ws=None):
-        self.__term = term
-        self.__ws   = ws
+class Options:
+    def __init__(self)
+        self.__term = "unknown"
+        self.__ws   = (80, 24)
 
     @property
     def term(self):
         return self.__term
 
+    @term.setter
+    def term(self, value):
+        self.__term = value
+
     @property
     def window_size(self):
         return self.__ws
 
-    def merge(self, opts):
-        if opts.term:
-            self.__term = opts.term
-        if opts.window_size:
-            self.__ws = opts.window_size
+    @window_size.setter
+    def window_size(self, value):
+        self.__ws = value
+
+    def __repr__(self):
+        return 'term=%s,window_size=%sx%s' % (
+            self.term, *self.window_size)
 
 
 class TelnetResponses:
-  TELNET_BREAK_RESPONSE = IAC + WILL + TM
-  TELNET_IP_RESPONSE    = IAC + WILL + TM
-  TELNET_ABORT_RESPONSE = IAC + DM
-  TELNET_DO_BINARY      = IAC + DO + BINARY
-  TELNET_DONT_BINARY    = IAC + DONT + BINARY
-  TELNET_DO_TM_RESPONSE = IAC + WILL + TM
-  TELNET_DO_NAWS        = IAC + DO + NAWS
-  TELNET_DO_TTYPE       = IAC + DO + TTYPE
-  TELNET_TERM_QUERY     = IAC + SB + TTYPE + bytes([1]) + IAC + SE
-  TELNET_WONT_ECHO      = IAC + WONT + ECHO
-  TELNET_WILL_ECHO      = IAC + WILL + ECHO
-  TELNET_WILL_SGA       = IAC + WILL + SGA
-  TELNET_WILL_BINARY    = IAC + WILL + BINARY
-  TELNET_WONT_BINARY    = IAC + WONT + BINARY
-  TELNET_AYT_RESPONSE   = '\n[-Yes-]\n'
-  TELNET_DONT_LINEMODE  = IAC + DONT + LINEMODE
+    TELNET_BREAK_RESPONSE = IAC + WILL + TM
+    TELNET_IP_RESPONSE    = IAC + WILL + TM
+    TELNET_ABORT_RESPONSE = IAC + DM
+    TELNET_DO_BINARY      = IAC + DO + BINARY
+    TELNET_DONT_BINARY    = IAC + DONT + BINARY
+    TELNET_DO_TM_RESPONSE = IAC + WILL + TM
+    TELNET_DO_NAWS        = IAC + DO + NAWS
+    TELNET_DO_TTYPE       = IAC + DO + TTYPE
+    TELNET_TERM_QUERY     = IAC + SB + TTYPE + bytes([1]) + IAC + SE
+    TELNET_WONT_ECHO      = IAC + WONT + ECHO
+    TELNET_WILL_ECHO      = IAC + WILL + ECHO
+    TELNET_WILL_SGA       = IAC + WILL + SGA
+    TELNET_WILL_BINARY    = IAC + WILL + BINARY
+    TELNET_WONT_BINARY    = IAC + WONT + BINARY
+    TELNET_AYT_RESPONSE   = '\n[-Yes-]\n'
+    TELNET_DONT_LINEMODE  = IAC + DONT + LINEMODE
 
 
 class NoEcho:
@@ -79,34 +85,43 @@ class TelnetStream:
         self.__input_binary = False
         self.__output_binary = False
         self.__binary_requested = False
+        self.__options = Options()
 
     def __getattr__(self, attr):
-      return getattr(self.__socket, attr)
+        return getattr(self.__socket, attr)
 
     @property
     def input_binary(self):
-      return self.__input_binary
+        return self.__input_binary
 
     @property
     def output_binary(self):
-      return self.__output_binary
+        return self.__output_binary
 
-    def readoptions(self, timeout=0.2):
-      opts = Options()
-      while True:
-        sleep(timeout)
-        try:
-            self.__rawq += stdsocket.socket.recv(self.__socket, 4096)
-        except stdsocket.error as e:
-            if e.errno == errno.EWOULDBLOCK:
-              if not self.__rawq:
-                  return opts
-            else:
-                raise
-        try:
-            self.__fill_queue()
-        except Options as newopts:
-            opts.merge(newopts)
+    @property
+    def options(self):
+        return self.__options
+
+    @property
+    def socket(self):
+        return self.__socket
+
+    def readoptions(self, timeout=None):
+        if timeout:
+            sleep(timeout)
+        while True:
+            try:
+                self.__rawq += stdsocket.socket.recv(self.__socket, 4096)
+            except stdsocket.error as e:
+                if e.errno == errno.EWOULDBLOCK:
+                    if not self.__rawq:
+                        return opts
+                else:
+                    raise
+
+        self.__fill_queue()
+
+        return self.__options
 
     def readline(self, binarycodec='utf8', endline='\n', maxlen=1024):
         suffix = endline.encode(binarycodec)
@@ -255,11 +270,11 @@ class TelnetStream:
                 else:
                     width = 80
                     height = 24
-                raise Options(ws=(width, height))
+                self.__options.window_size = (width, height)
             elif cmd == TTYPE:
                 if opt[1] == 0:
                     termtype = opt[2:]
                 else:
                     termtype = opt[1:]
-                raise Options(term=termtype.decode())
+                self.__options.term = termtype.decode()
 

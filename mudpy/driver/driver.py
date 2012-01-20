@@ -1,65 +1,80 @@
-import Auth
-import ConfigParser
-import database
+from mudpy.driver.check_color import has_color
+
 import logging
-import logging.config
-import pprint
-import reactor
-import signals
-import sqlalchemy
-import TelnetServer
+import optparse
+import os
+import socket
 
-# db objects
-import mudlib.player
-
-logger = logging.getLogger('Driver')
+from khakilet.hub import Hub
+from khakilet.server import Listener
+from khakilet.telnet import *
 
 
-def create_metadata():
-  db = database.Database()
-  metadata = sqlalchemy.MetaData()
-  mudlib.player.register_table(metadata)
-  metadata.create_all(db)
+def prompt(ts, msg):
+    while True:
+        try:
+            ts.sendtext(msg)
+            return ts.readline().rstrip()
+        except Interrupt:
+            ts.sendtext('\n')
+            pass
 
 
-def user_authorized(conn, user):
-  logger.info('%s connected and authorized', user)
+def new_connection(conn, addr):
+    try:
+        logging.info('New connection from: %s', addr[0])
 
-def user_unauthorized(conn, user):
-  logger.info('%s connected and unauthorized', user)
+        ts = TelnetStream(conn)
 
-logging.config.fileConfig('etc/logger.cfg')
+        if config.telnet.terminal_type_support:
+            ts.request_terminal_type()
+        if config.telnet.utf8_support:
+            ts.enable_binary_mode()
+        if config.telnet.window_size_support:
+            ts.request_window_size()
 
-db = database.Database()
-db.open_db('sqlite:///mudlib.db')
-session = database.Session()
-session.open_session(db)
-create_metadata()
+        opts = ts.readoptions(config.telnet.readoptions_sleep_time)
 
-auth_daemon = Auth.AuthDaemon()
+        color = has_color(opts.term)
+        logging.debug('...%s,color=%s', opts, color)
 
-def handle_new_connection(conn):
-  auth_daemon.auth(conn)
+        name = prompt(ts, 'Character Name (or "new"): ')
 
-def new_user(conn, properties):
-  logger.info('New user: %s', properties.get('name'))
-  logger.info('New user properties: %s', pprint.pformat(properties))
-  player = mudlib.player.Player(**properties)
-  cache = database.ObjectCache()
-  cache.save(player)
-  id = player.id
-  del player
-  player = cache.lookup(mudlib.player.Player, id)
-  conn.connect_signals(player)
+        if name.lower() == 'new':
+            logging.debug('Creating new character...')
+            new_character(ts, color)
+        else:
+            with NoEcho(ts):
+                password = prompt('Password: ')
+                ts.sendtext('\n')
+    except LineTooLong:
+        logging.info('Connection closed: %s', ts.socket.getpeername()[0])
+        conn.close()
+    except ConnectionClosed:
+        logging.info('Connection closed: %s', ts.socket.getpeername()[0])
+        conn.close()
 
-  
-server = TelnetServer.TelnetServer(port=12345)
-server.connect_handler.connect(handle_new_connection)
 
-signals.user_authorized_signal.connect(user_authorized)
-signals.user_unauthorized_signal.connect(user_unauthorized)
-signals.new_user_signal.connect(new_user)
+if __name__ == '__main__':
+    parser = optparse.OptionParser('%prog configfile')
 
-reactor.reactor.start_reactor()
-reactor.reactor.close()
+    opt, args = parser.parse_args()
+
+    if len(args) != 1:
+        parser.error('Expected 1 argument: config file')
+
+    os.putenv('MUDPY_CONFIG_FILE', args[0])
+
+    try:
+        from mudpy.driver import config
+
+        with Hub() as hub:
+            hub.spawn(
+                Listener(
+                    (config.network.bind_address, config.network.bind_port),
+                    new_connection,
+                    pf=config.network.address_family).serve)
+            hub.switch()
+    except:
+        logging.exception("MUD Shutdown due to exception!")
 
