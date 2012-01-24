@@ -125,7 +125,7 @@ class Timer(_Watch):
 ev_timer_start = dll.ev_timer_start
 ev_timer_start.argtypes = [ctypes.POINTER(Loop), ctypes.POINTER(Timer)]
 ev_timer_start.restype = None
-ev_timer_again = dll.ev_timer_start
+ev_timer_again = dll.ev_timer_again
 ev_timer_again.argtypes = [ctypes.POINTER(Loop), ctypes.POINTER(Timer)]
 ev_timer_again.restype = None
 ev_timer_stop = dll.ev_timer_stop

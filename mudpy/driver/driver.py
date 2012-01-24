@@ -48,7 +48,8 @@ def new_connection(conn, addr):
                 password = prompt('Password: ')
                 ts.sendtext('\n')
     except LineTooLong:
-        logging.info('Connection closed: %s', ts.socket.getpeername()[0])
+        logging.info('Connection closed due to buffer overrun: %s',
+                     ts.socket.getpeername()[0])
         conn.close()
     except ConnectionClosed:
         logging.info('Connection closed: %s', ts.socket.getpeername()[0])
