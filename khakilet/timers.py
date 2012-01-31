@@ -63,7 +63,6 @@ class _TimerService(hub.Branch):
         self.pipe = os.pipe()
         self.iowatch = ev.Io(fd=self.pipe[0], events=ev.EV_READ)
         self.iowatch.branch = self
-        self.hub.add_watch(self.iowatch, 'io', single=False)
         self.timers = dict()
         self.running = True
 
@@ -74,6 +73,8 @@ class _TimerService(hub.Branch):
         self.timers.pop(timer.timer_id)
 
     def run(self):
+        self.hub.add_watch(self.iowatch, 'io', single=False)
+
         try:
             while self.running:
                 timer_id = self.hub.switch()
