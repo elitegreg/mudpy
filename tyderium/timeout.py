@@ -13,7 +13,7 @@ class Timeout:
 
     def __enter__(self):
         if self.seconds:
-            getcurrent().hub.add_watch(self.towatch, 'khakilet timeout')
+            getcurrent().hub.add_watch(self.towatch, 'tyderium timeout')
         return self
 
     def __exit__(self, typ, value, tb):

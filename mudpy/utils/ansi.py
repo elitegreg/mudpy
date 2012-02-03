@@ -59,7 +59,6 @@ DEFAULT_MAP = dict([(x, '')
 
 
 del current_locals
-del x
 
 
 def map_string(s, map = DEFAULT_MAP):
@@ -116,5 +115,5 @@ if __name__ == '__main__':
   strings.append('${BG_DEFAULT}This is a default background${RESET}')
 
   for s in strings:
-    print map_string(s, ANSI_MAP)
+    print(map_string(s, ANSI_MAP))
 

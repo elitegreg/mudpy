@@ -50,7 +50,7 @@ class _Watch(ctypes.Structure):
         branch.hub.add_watch(self)
         result = branch.hub.switch()
 
-        if result and result == 'khakilet timeout':
+        if result and result == 'tyderium timeout':
           raise TimeoutError
 
 ev_callback = ctypes.CFUNCTYPE(None,

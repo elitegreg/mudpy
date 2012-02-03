@@ -388,7 +388,7 @@ class Server(_BaseHTTP):
     max_in_memory_body = 256 << 10 # 256Kb
     allow_methods = frozenset(('GET', 'HEAD', 'POST'))
     max_request_body = 100 << 20 # 100Mb
-    server_name = "Khakilet/0.1"
+    server_name = "Tyderium/0.1"
     request_factory = Request
     arguments_order = ('query', 'post')
 

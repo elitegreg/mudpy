@@ -7,11 +7,17 @@ from .util import sleep
 from telnetlib import AO, AYT, BINARY, BRK, DM, DO, DONT, ECHO, IAC, IP, \
     LINEMODE, NAWS, SB, SGA, SE, TTYPE, TM, WILL, WONT, theNULL
 
-__all__ = ['LineTooLong', 'ConnectionClosed', 'Interrupt', 'NoEcho', 'TelnetStream']
+__all__ = [
+    'LineTooLong',
+    'ConnectionClosed',
+    'Interrupt',
+    'NoEcho',
+    'Options',
+    'TelnetStream'
+]
 
 class LineTooLong(IOError): pass
 class ConnectionClosed(IOError): pass
-
 class Interrupt(IOError): pass
 
 class Options:
@@ -40,7 +46,7 @@ class Options:
             self.term, *self.window_size)
 
 
-class TelnetResponses:
+class _TelnetResponses:
     TELNET_BREAK_RESPONSE = IAC + WILL + TM
     TELNET_IP_RESPONSE    = IAC + WILL + TM
     TELNET_ABORT_RESPONSE = IAC + DM
@@ -64,13 +70,10 @@ class NoEcho:
         self.__telnetstream = telnetstream
 
     def __enter__(self, *args, **kwargs):
-        self.__telnetstream.send(TelnetResponses.TELNET_WILL_ECHO)
+        self.__telnetstream.send(_TelnetResponses.TELNET_WILL_ECHO)
 
     def __exit__(self, *args, **kwargs):
-        self.__telnetstream.send(TelnetResponses.TELNET_WONT_ECHO)
-
-
-BYTE_255 = IAC + IAC
+        self.__telnetstream.send(_TelnetResponses.TELNET_WONT_ECHO)
 
 
 class TelnetStream:
@@ -133,7 +136,7 @@ class TelnetStream:
                 idx += suflen
                 res = self.__dataq[0][:idx]
                 self.__dataq[0] = self.__dataq[0][idx:]
-                if self.output_binary:
+                if self.output_binary: # I don't understand this block?
                     self.send(b'\r')
                 return res.decode(
                     binarycodec if self.__input_binary else 'ascii')
@@ -147,24 +150,24 @@ class TelnetStream:
         text = text.replace('\n', '\r\n')
         if self.__output_binary:
             buf = text.encode(
-                binarycodec, errors='replace').replace(IAC, BYTE_255)
+                binarycodec, errors='replace').replace(IAC, IAC+IAC)
         else:
             buf = text.encode('ascii', errors='replace')
         self.send(buf)
 
     def disable_binary_mode(self):
-        self.send(TelnetResponses.TELNET_WONT_BINARY)
+        self.send(_TelnetResponses.TELNET_WONT_BINARY)
 
     def enable_binary_mode(self):
         self.__binary_requested = True
-        self.send(TelnetResponses.TELNET_WILL_BINARY)
-        self.send(TelnetResponses.TELNET_DO_BINARY)
+        self.send(_TelnetResponses.TELNET_WILL_BINARY)
+        self.send(_TelnetResponses.TELNET_DO_BINARY)
         
     def request_terminal_type(self):
-        self.send(TelnetResponses.TELNET_DO_TTYPE)
+        self.send(_TelnetResponses.TELNET_DO_TTYPE)
 
     def request_window_size(self):
-        self.send(TelnetResponses.TELNET_DO_NAWS)
+        self.send(_TelnetResponses.TELNET_DO_NAWS)
 
     def __fill_queue(self):
         if not self.__rawq:
@@ -211,46 +214,46 @@ class TelnetStream:
 
     def __handle_option(self, cmd, opt):
         if cmd == BRK:
-            self.send(TelnetResponses.TELNET_BREAK_RESPONSE)
+            self.send(_TelnetResponses.TELNET_BREAK_RESPONSE)
         elif cmd == IP:
-            self.send(TelnetResponses.TELNET_IP_RESPONSE)
+            self.send(_TelnetResponses.TELNET_IP_RESPONSE)
             raise Interrupt()
         elif cmd == AYT:
-            self.send(TelnetResponses.TELNET_AYT_RESPONSE)
+            self.send(_TelnetResponses.TELNET_AYT_RESPONSE)
         elif cmd == AO:
-            self.sock.send(TelnetResponses.TELNET_ABORT_RESPONSE,
+            self.sock.send(_TelnetResponses.TELNET_ABORT_RESPONSE,
                 socket.MSG_OOB)
         elif cmd == WILL:
             if opt == TTYPE:
-                self.send(TelnetResponses.TELNET_TERM_QUERY)
+                self.send(_TelnetResponses.TELNET_TERM_QUERY)
             elif opt == LINEMODE:
-                self.send(TelnetResponses.TELNET_DONT_LINEMODE)
+                self.send(_TelnetResponses.TELNET_DONT_LINEMODE)
             elif opt == ECHO or opt == NAWS:
                 # do nothing, don't send DONT
                 pass
             elif opt == BINARY:
                 self.__input_binary = True
                 if not self.__binary_requested:
-                    self.send(TelnetResponses.TELNET_DO_BINARY)
+                    self.send(_TelnetResponses.TELNET_DO_BINARY)
             else:
                 self.send(IAC + DONT + opt)
         elif cmd == WONT:
             if opt == LINEMODE:
-                self.send(TelnetResponses.TELNET_DONT_LINEMODE)
+                self.send(_TelnetResponses.TELNET_DONT_LINEMODE)
             elif opt == BINARY:
                 self.__input_binary = False
         elif cmd == DO:
             if opt == TM:
-                self.send(TelnetResponses.TELNET_DO_TM_RESPONSE)
+                self.send(_TelnetResponses.TELNET_DO_TM_RESPONSE)
             elif opt == SGA:
-                self.send(TelnetResponses.TELNET_WILL_SGA)
+                self.send(_TelnetResponses.TELNET_WILL_SGA)
             elif opt == ECHO:
                 # do nothing, don't send WONT
                 pass
             elif opt == BINARY:
                 self.__output_binary = True
                 if not self.__binary_requested:
-                    self.send(TelnetResponses.TELNET_WILL_BINARY)
+                    self.send(_TelnetResponses.TELNET_WILL_BINARY)
             else:
                 self.send(IAC + WONT + opt)
         elif cmd == DONT:
