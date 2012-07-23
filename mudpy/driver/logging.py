@@ -52,43 +52,44 @@ try:
 except AttributeError:
     LOGFILE = sys.stdout
 
-def _format_and_output(level, msg):
+def _format_and_output(level, msg, *args, **kwargs):
     tm = time.time()
-    ts = time.strftime(config.log.time_format, localtime(tm))
+    ts = time.strftime(config.log.time_format, time.localtime(tm))
     if config.log.append_time_fraction:
         ts += config.log.append_time_fraction % (tm % 1)
-    print("%s [%s] - %s" % (tm, level, msg), file=LOGFILE)
+    msg = msg.format(*args, **kwargs)
+    print("{} [{}] - {}".format(tm, level, msg), file=LOGFILE)
 
-def log(level, msg, *args):
+def log(level, msg, *args, **kwargs):
     if CURRENT_LOG_LEVEL >= level:
-        _format_and_output(level, msg % args)
+        _format_and_output(level, msg, *args, **kwargs)
 
-def fatal(msg, *args):
-    return log(FATAL, msg, *args)
+def fatal(msg, *args, **kwargs):
+    return log(FATAL, msg, *args, **kwargs)
 
-def error(msg, *args):
-    return log(ERROR, msg, *args)
+def error(msg, *args, **kwargs):
+    return log(ERROR, msg, *args, **kwargs)
 
-def warn(msg, *args):
-    return log(WARN, msg, *args)
+def warn(msg, *args, **kwargs):
+    return log(WARN, msg, *args, **kwargs)
 
-def info(msg, *args):
-    return log(INFO, msg, *args)
+def info(msg, *args, **kwargs):
+    return log(INFO, msg, *args, **kwargs)
 
-def debug(msg, *args):
-    return log(DEBUG, msg, *args)
+def debug(msg, *args, **kwargs):
+    return log(DEBUG, msg, *args, **kwargs)
 
-def trace(msg, *args):
+def trace(msg, *args, **kwargs):
     if __debug__:
-        return log(TRACE, msg, *args)
+        return log(TRACE, msg, *args, **kwargs)
     return None
 
-def exception(msg, *args):
+def exception(msg, *args, **kwargs):
     sio = io.StringIO()
     sio.write(msg)
     sio.write('\n')
-    traceback.print_exception(*sys.exc_info(), None, sio)
+    traceback.print_exception(*sys.exc_info(), file=sio)
     s = sio.getvalue()
     sio.close()
-    error(s, *args)
+    error(s, *args, **kwargs)
 
