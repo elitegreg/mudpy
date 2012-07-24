@@ -1,80 +1,112 @@
+from mudpy.driver.database import DoesNotExist, ObjectCache
+
 import types
 import weakref
 
 
-class weaklist(list):
+class weakset(set):
   def __init__(self, callback):
     self.__callback = callback
 
-  def append(self, obj):
+  def add(self, obj):
     if not isinstance(obj, weakref.ref):
       obj = obj.weakref(self.__callback)
     else:
       obj = obj().weakref(self.__callback)
-    return super().append(obj)
+    return super().add(obj)
 
-  def extend(self, other_list):
-    if isinstance(other_list, weaklist):
+  def discard(self, obj):
+    if not isinstance(obj, weakref.ref):
+      obj = obj.weakref(self.__callback)
+    else:
+      obj = obj().weakref(self.__callback)
+    return super().discard(obj)
+
+  def update(self, other_list):
+    if isinstance(other_list, weakset):
       super().extend(other_list)
     else:
       for item in other_list:
-        self.append(item)
+        self.add(item)
 
-  def insert(self, index, obj):
-    if not isinstance(obj, weakref.ref):
-      obj = obj.weakref(self.__callback)
-    else:
-      obj = obj().weakref(self.__callback)
-    return super().insert(obj)
+  #TODO auto deref weakrefs on access
 
 
-class Object(object):
+class Object():
   def __init__(self, oid):
-    super(Object, self).__init__()
+    super().__init__()
     self.__oid = oid
-    self.__inventory = weaklist(self.__de_ref)
+    self.__inventory = weakset(self.__de_ref)
     self.__environment = None
 
   def __de_ref(self, obj):
-    cnt = self.__inventory.count(obj)
-    for i in range(0, cnt):
-      self.__inventory.remove(obj)
-    if self.__environment == obj:
-      self.__environment = None # TODO we need better logic here!
+    self.inventory.discard(obj)
+    if self.environment == obj:
+      self.environment = None # TODO we need better logic here!
 
-  def __environment_set(self, objweakref):
-    if not isinstance(objweakref, weakref.ref):
-      raise TypeError(str(self) +
-          " tried to set environment to non-weakref")
-    self.__environment = objweakref
+  def __getstate__(self):
+    d = self.__dict__.copy()
+    d.pop('_Object__oid')
+    d.pop('_Object__inventory')
 
-  environment = property(lambda self: self.__environment,
-                         __environment_set)
+    if self.environment:
+      d['_Object__environment'] = self.environment.oid
+    return d
 
-  def __oid_set(self, newoid):
-    self.__oid = newoid
+  def __setstate__(self, newstate):
+    self.__dict__ = newstate
+    self.__inventory = weakset(self.__de_ref)
 
-  oid = property(lambda self: self.__oid,
-                 __oid_set)
+    if self.environment:
+      oid = self.environment
+      self.environment = None
+      move_object_to_oid(self, oid)
+
+  @property
+  def environment(self):
+    return self.__environment()
+
+  @environment.setter
+  def environment(self, newenv):
+    if newenv is None or isinstance(newenv, weakref.ref):
+      self.__environment = newenv
+    else:
+      self.__environment = newenv.weakref(self.__de_ref)
+
+  @property
+  def oid(self):
+    return self.__oid
 
   @property
   def inventory(self):
     return self.__inventory    
 
-  @property
-  def props(self):
-    raise NotImplementedError
-
-  def reset(self):
-    pass
-
-  def restore(self, propdict):
-    raise NotImplementedError
-
-  def setup(self):
-    pass
-
   def weakref(self, callback=None):
     return weakref.ref(self, callback)
 
   
+def move_object(obj, newenv, notifications=True):
+  oldenv = obj.environment
+  if oldenv:
+    oldenv.inventory.discard(obj)
+    try:
+      oldenv.notify_object_exit(obj)
+    except AttributeError:
+      pass
+
+  obj.environment = newenv
+  newenv.inventory.add(obj)
+
+  try:
+    obj.notify_environment_changed(oldenv)
+  except AttributeError:
+    pass
+
+  try:
+    newenv.notify_object_enter(obj)
+  except AttributeError:
+    pass
+
+
+def move_object_to_oid(obj, oid, notifications=True):
+  return move_object(obj, ObjectCache().get(oid), notifications)

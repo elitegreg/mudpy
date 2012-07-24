@@ -1,5 +1,3 @@
 .coverage
-khakilet/__pycache__
-mudpy/driver/__pycache__
-mudpy/utils/__pycache__
-mudpy/__pycache__
+sample/db
+__pycache__

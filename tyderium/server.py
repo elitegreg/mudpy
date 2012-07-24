@@ -21,7 +21,6 @@ class Listener(object):
                 self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             if fd is None:
-                print('bind((%s, %s))' % (addr))
                 self.sock.bind(addr)
                 self.sock.listen(listen_backlog)
             self.factory = factory

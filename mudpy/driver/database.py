@@ -4,7 +4,15 @@ import os.path
 import re
 import yaml
 
+from . import config
+from . import logging
+
 from mudpy.utils.borg import Borg
+from mudpy.utils.filesystem import mkdir
+
+
+class DoesNotExist(RuntimeError):
+  pass
 
 
 ##
@@ -20,17 +28,18 @@ from mudpy.utils.borg import Borg
 # RegEx breaks into db, type, id, clone, clone_id
 OBJECT_ID_FORMAT = re.compile(r'^(?P<path>[\w./]+)((?P<clone>#)(?P<clone_id>\d+)?)?$')
 
+
 class Object_ID(yaml.YAMLObject):
   yaml_loader = yaml.SafeLoader
-  yaml_tag = '!Object_ID'
-  
+  yaml_tag = '!ID'
+
   @classmethod
   def from_yaml(cls, loader, node):
     return Object_ID(loader.construct_scalar(node))
 
   @classmethod
   def to_yaml(cls, dumper, data):
-    return repr(data)
+    return dumper.represent_scalar('!ID', repr(data))
 
   def __init__(self, oid):
     super().__init__()
@@ -79,8 +88,6 @@ class Object_ID(yaml.YAMLObject):
   def __repr__(self):
     return self.oid
 
-yaml.add_implicit_resolver('!Object_ID', OBJECT_ID_FORMAT)
-
 
 class ObjectCache(Borg):
   __global_clone_id = 0
@@ -90,10 +97,10 @@ class ObjectCache(Borg):
     'This should only be called when testing the object cache!'
     self.__id_to_obj.clear()
 
-  def get(self, oid, create=False):
+  def get(self, oid, create=None, *args, **kwargs):
     '''Loads an object with given oid. create can be the object
        class, if an object should be created if one doesn't exist. '''
-    assert(isinstance(Object_ID, oid))
+    assert(isinstance(oid, Object_ID))
 
     obj = self.__id_to_obj.get(oid)
 
@@ -115,9 +122,8 @@ class ObjectCache(Borg):
           oid = oid.add_clone_id(self.__global_clone_id)
           obj = copy.deepcopy(base_obj)
           obj.oid = oid
-          obj.setup() # setup the newly created object
       else:
-        obj = DB().load(oid, create)
+        obj = DB().load(oid, create, *args, **kwargs)
 
       # store the obj in the cache
       self.__id_to_obj[oid] = obj
@@ -136,12 +142,11 @@ class ObjectCache(Borg):
 
 
 class DB(Borg):
-  DBDIR = None
-
   def __fix_path(self, oid):
+    path = repr(oid)
     if os.sep != '/':
-      path = repr(oid).replace('/', os.sep)
-    path = os.path.join(DBDIR, path)
+      path = path.replace('/', os.sep)
+    path = os.path.join(config.db.path, path[1:])
     return path
 
   def delete_id(self, oid):
@@ -149,22 +154,29 @@ class DB(Borg):
       raise RuntimeError("DB: Cannot delete clone object: %s" % oid)
     os.unlink(self.__fix_path(oid))
 
-  def load(self, oid):
+  def load(self, oid, create=None, *args, **kwargs):
     '''Loads an object with given oid. create_if_needed can be the object
        class, if an object should be created if one doesn't exist. '''
 
-    with open(self.__fix_path(oid)) as fd:
-      obj = yaml.safe_load(fd)
-    obj.restore(data)
-    return obj
+    try:
+      path = self.__fix_path(oid)
+      logging.debug('DB:load(oid={})', oid, path)
+      with open(path) as fd:
+        obj = yaml.safe_load(fd)
+      return obj
+    except IOError:
+      if create:
+        return create(oid, *args, **kwargs)
+      raise DoesNotExist
 
   def save_obj(self, obj):
-    oid = obi.oid
+    oid = obj.oid
     if oid.is_clone:
       raise RuntimeError("Cloned object can't be saved: %s" % oid)
     path = self.__fix_path(oid)
+    logging.debug('DB:save_obj(oid={}): path={}', oid, path)
     dirname = os.path.dirname(path)
-    os.makedirs(dirname)
+    mkdir(dirname)
     with open(path, 'w') as fd:
-      yaml.dump(obj, fd, explicit_start=True, width=72, indent=4)
+      yaml.dump(obj, fd, explicit_start=True, width=72, indent=4, default_flow_style=False)
 

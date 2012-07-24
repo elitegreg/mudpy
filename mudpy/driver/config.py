@@ -6,6 +6,9 @@ from socket import AF_INET, AF_INET6
 
 class ConfigGroup: pass
 
+db = ConfigGroup()
+db.path = None
+
 log = ConfigGroup()
 log.level = 'INFO'
 log.time_format = '%Y%m%d %H:%M:%S'
@@ -36,5 +39,6 @@ term.color_types = {
     'xterm',
 }
 
-execfile(os.getenv('MUDPY_CONFIG_FILE', 'mudconfig.py'), globals(), locals())
+def load(cfg_file):
+    execfile(cfg_file, globals(), globals())
 

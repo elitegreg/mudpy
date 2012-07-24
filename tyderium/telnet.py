@@ -21,7 +21,7 @@ class ConnectionClosed(IOError): pass
 class Interrupt(IOError): pass
 
 class Options:
-    def __init__(self)
+    def __init__(self):
         self.__term = "unknown"
         self.__ws   = (80, 24)
 
@@ -43,7 +43,7 @@ class Options:
 
     def __repr__(self):
         return 'term=%s,window_size=%sx%s' % (
-            self.term, *self.window_size)
+            self.term, self.window_size[0], self.window_size[1])
 
 
 class _TelnetResponses:
@@ -93,6 +93,9 @@ class TelnetStream:
     def __getattr__(self, attr):
         return getattr(self.__socket, attr)
 
+    def __repr__(self):
+        return self.__socket.getpeername()[0]
+
     @property
     def input_binary(self):
         return self.__input_binary
@@ -117,8 +120,7 @@ class TelnetStream:
                 self.__rawq += stdsocket.socket.recv(self.__socket, 4096)
             except stdsocket.error as e:
                 if e.errno == errno.EWOULDBLOCK:
-                    if not self.__rawq:
-                        return opts
+                    break
                 else:
                     raise
 
