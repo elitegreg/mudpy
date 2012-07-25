@@ -1,4 +1,4 @@
-from mudpy.driver.database import DoesNotExist, ObjectCache
+from mudpy.driver.database import *
 
 import types
 import weakref
@@ -64,7 +64,7 @@ class Object():
 
   @property
   def environment(self):
-    return self.__environment()
+    return self.__environment() if self.__environment else None
 
   @environment.setter
   def environment(self, newenv):
@@ -77,9 +77,17 @@ class Object():
   def oid(self):
     return self.__oid
 
+  @oid.setter
+  def oid(self, value):
+    assert(isinstance(value, Object_ID))
+    self.__oid = value
+
   @property
   def inventory(self):
     return self.__inventory    
+
+  def save(self):
+      DB().save_obj(self)
 
   def weakref(self, callback=None):
     return weakref.ref(self, callback)

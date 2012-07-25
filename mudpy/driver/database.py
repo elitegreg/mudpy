@@ -163,6 +163,7 @@ class DB(Borg):
       logging.debug('DB:load(oid={})', oid, path)
       with open(path) as fd:
         obj = yaml.safe_load(fd)
+      obj.oid = oid
       return obj
     except IOError:
       if create:

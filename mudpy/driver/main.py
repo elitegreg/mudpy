@@ -3,6 +3,7 @@ import os
 
 from tyderium.hub import Hub
 from tyderium.server import Listener
+from tyderium.timers import start_timer_service
 
 
 if __name__ == '__main__':
@@ -23,6 +24,8 @@ if __name__ == '__main__':
 
     try:
         with Hub() as hub:
+            start_timer_service(hub)
+
             hub.spawn(
                 Listener(
                     (config.telnet.bind_address, config.telnet.bind_port),

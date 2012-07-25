@@ -112,22 +112,6 @@ class TelnetStream:
     def socket(self):
         return self.__socket
 
-    def readoptions(self, timeout=None):
-        if timeout:
-            sleep(timeout)
-        while True:
-            try:
-                self.__rawq += stdsocket.socket.recv(self.__socket, 4096)
-            except stdsocket.error as e:
-                if e.errno == errno.EWOULDBLOCK:
-                    break
-                else:
-                    raise
-
-        self.__fill_queue()
-
-        return self.__options
-
     def readline(self, binarycodec='utf8', endline='\n', maxlen=1024):
         suffix = endline.encode(binarycodec)
         suflen = len(endline)
