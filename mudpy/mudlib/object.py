@@ -4,6 +4,9 @@ import types
 import weakref
 
 
+class TmpVars():
+    pass
+
 class weakset(set):
   def __init__(self, callback):
     self.__callback = callback
@@ -34,10 +37,7 @@ class weakset(set):
 
 class Object():
   def __init__(self, oid):
-    super().__init__()
-    self.__oid = oid
-    self.__inventory = weakset(self.__de_ref)
-    self.__environment = None
+    raise RuntimeError('Mudlib objects cannot be constructed!')
 
   def __de_ref(self, obj):
     self.inventory.discard(obj)
@@ -48,6 +48,7 @@ class Object():
     d = self.__dict__.copy()
     d.pop('_Object__oid')
     d.pop('_Object__inventory')
+    d.pop('_Object__tmp')
 
     if self.environment:
       d['_Object__environment'] = self.environment.oid
@@ -56,11 +57,14 @@ class Object():
   def __setstate__(self, newstate):
     self.__dict__ = newstate
     self.__inventory = weakset(self.__de_ref)
+    self.__tmp = TmpVars()
 
-    if self.environment:
-      oid = self.environment
+    if hasattr(self, '_Object__environment'):
+      oid = self.__environment
       self.environment = None
       move_object_to_oid(self, oid)
+    else:
+      self.__environment = None
 
   @property
   def environment(self):
@@ -85,6 +89,10 @@ class Object():
   @property
   def inventory(self):
     return self.__inventory    
+
+  @property
+  def tmp(self):
+    return self.__tmp    
 
   def save(self):
       DB().save_obj(self)
@@ -118,3 +126,4 @@ def move_object(obj, newenv, notifications=True):
 
 def move_object_to_oid(obj, oid, notifications=True):
   return move_object(obj, ObjectCache().get(oid), notifications)
+

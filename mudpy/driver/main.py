@@ -20,7 +20,7 @@ if __name__ == '__main__':
     from . import database
     from . import logging
 
-    from mudpy.mudlib import player
+    from mudpy import mudlib # register mudlib classes with yaml
 
     try:
         with Hub() as hub:
@@ -29,7 +29,7 @@ if __name__ == '__main__':
             hub.spawn(
                 Listener(
                     (config.telnet.bind_address, config.telnet.bind_port),
-                    player.new_connection,
+                    mudlib.player.new_connection,
                     pf=config.telnet.address_family).serve)
             hub.switch()
     except KeyboardInterrupt:

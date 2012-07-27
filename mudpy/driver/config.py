@@ -39,6 +39,28 @@ term.color_types = {
     'xterm',
 }
 
+player = ConfigGroup()
+player.default_aliases = {
+    'north' : 'go north',
+    'south' : 'go south',
+    'east'  : 'go east',
+    'west'  : 'go west',
+    'up'    : 'go up',
+    'down'  : 'go down',
+    
+    'n'     : 'go north',
+    's'     : 'go south',
+    'e'     : 'go east',
+    'w'     : 'go west',
+    
+    'northeast' : 'go northeast',
+    'northwest' : 'go northwest',
+    'southeast' : 'go southeast',
+    'southwest' : 'go southwest',
+
+    'l' : 'look',
+}
+
 def load(cfg_file):
     execfile(cfg_file, globals(), globals())
 

@@ -97,7 +97,7 @@ class ObjectCache(Borg):
     'This should only be called when testing the object cache!'
     self.__id_to_obj.clear()
 
-  def get(self, oid, create=None, *args, **kwargs):
+  def get(self, oid, create=None, createdict=None):
     '''Loads an object with given oid. create can be the object
        class, if an object should be created if one doesn't exist. '''
     assert(isinstance(oid, Object_ID))
@@ -123,7 +123,7 @@ class ObjectCache(Borg):
           obj = copy.deepcopy(base_obj)
           obj.oid = oid
       else:
-        obj = DB().load(oid, create, *args, **kwargs)
+        obj = DB().load(oid, create, createdict)
 
       # store the obj in the cache
       self.__id_to_obj[oid] = obj
@@ -154,7 +154,7 @@ class DB(Borg):
       raise RuntimeError("DB: Cannot delete clone object: %s" % oid)
     os.unlink(self.__fix_path(oid))
 
-  def load(self, oid, create=None, *args, **kwargs):
+  def load(self, oid, create=None, createdict=None):
     '''Loads an object with given oid. create_if_needed can be the object
        class, if an object should be created if one doesn't exist. '''
 
@@ -167,7 +167,12 @@ class DB(Borg):
       return obj
     except IOError:
       if create:
-        return create(oid, *args, **kwargs)
+        if not createdict:
+          createdict = dict()
+        createdict['_Object__oid'] = oid
+        obj = create.__new__(create)
+        obj.__setstate__(createdict)
+        return obj
       raise DoesNotExist
 
   def save_obj(self, obj):
