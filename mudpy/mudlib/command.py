@@ -58,8 +58,8 @@ def command(cmd, requestor, depth=0):
 
     logging.trace('Command not found!')
     logging.trace('  __system_commands = {}    __gameplay_commands = {}',
-                  pprint.pformat(__system_commands),
-                  pprint.pformat(__gameplay_commands))
+                  pprint.pformat(__system_commands.keys()),
+                  pprint.pformat(__gameplay_commands.keys()))
 
     raise CommandError('Unknown command!')
 

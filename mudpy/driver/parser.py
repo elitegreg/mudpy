@@ -10,11 +10,9 @@ PARSER_RE = '^%s(?:\s+(?P<direct_obj>.*?))?(?(direct_obj)%s\s+(?P<indirect_obj>.
 
 
 class Parser(object):
-  def __init__(config):
-    self.__articles = set(config.get('parser', 'articles',
-        DEFAULT_ARTICLES).split(','))
-    self.__prepositions = set(config.get('parser', 'prepositions',
-        DEFAULT_PREPOSITIONS).split(','))
+  def __init__(self):
+    self.__articles = set({'a', 'an', 'the'})
+    self.__prepositions = set({'of', 'from', 'to', 'in'})
     prep_regex = '\s+(?<prep>%s)' % '|'.join(self.__prepositions)
     verb_regex = VERB % '|'.join(self.__prepositions)
     self.__regex = PARSER_RE % (verb_regex, prep_regex)

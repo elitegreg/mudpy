@@ -101,7 +101,7 @@ class Object():
     return weakref.ref(self, callback)
 
   
-def move_object(obj, newenv, notifications=True):
+def move_object(obj, newenv):
   oldenv = obj.environment
   if oldenv:
     oldenv.inventory.discard(obj)
@@ -113,17 +113,7 @@ def move_object(obj, newenv, notifications=True):
   obj.environment = newenv
   newenv.inventory.add(obj)
 
-  try:
-    obj.notify_environment_changed(oldenv)
-  except AttributeError:
-    pass
 
-  try:
-    newenv.notify_object_enter(obj)
-  except AttributeError:
-    pass
-
-
-def move_object_to_oid(obj, oid, notifications=True):
-  return move_object(obj, ObjectCache().get(oid), notifications)
+def move_object_to_oid(obj, oid):
+  return move_object(obj, ObjectCache().get(oid))
 

@@ -9,6 +9,10 @@ class Room(Object, yaml.YAMLObject):
     yaml_loader = yaml.SafeLoader
     yaml_tag = '!Room'
 
+    def __setstate__(self, newstate):
+        super().__setstate__(newstate)
+        self.tmp.cached_exits = dict()
+
     @property
     def short_description(self):
         return self.__short_description

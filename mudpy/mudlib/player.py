@@ -15,6 +15,7 @@ from tyderium.telnet import *
 
 from datetime import datetime
 
+import socket
 import textwrap
 import yaml
 
@@ -111,6 +112,10 @@ class Player(Object, yaml.YAMLObject):
         return passwd_tool.compare(self.__password, password)
 
     @property
+    def aliases(self):
+        return self.__aliases
+
+    @property
     def email(self):
         return self.__email
 
@@ -146,8 +151,10 @@ class Player(Object, yaml.YAMLObject):
             self.__last_ip = ts.socket.getpeername()[0]
             self.__last_time = datetime.now().ctime()
 
+            command('look', self)
+
             while True:
-                cmd = ts.prompt('> ').rstrip().lower()
+                cmd = ts.prompt('> ').strip().lower()
       
                 if cmd == '':
                     continue
@@ -156,7 +163,7 @@ class Player(Object, yaml.YAMLObject):
                         command(cmd, self)
                     except CommandError as e:
                         ts.write(str(e))
-        except ConnectionClosed:
+        except (ConnectionClosed, socket.error):
             self.__telnet_stream = None
 
 
