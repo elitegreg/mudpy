@@ -1,4 +1,4 @@
-from mudpy.mudlib.command import *
+from mudpy.command import *
 
 def quit_cmd(cmd, requestor):
     if cmd != 'quit':

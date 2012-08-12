@@ -1,4 +1,4 @@
-from mudpy.driver import logging
+from mudpy import logging
 
 import pprint
 

@@ -1,5 +1,5 @@
-from mudpy.mudlib.command import *
-from mudpy.mudlib.object import *
+from mudpy.command import *
+from mudpy.object import *
 
 from .look import look_cmd
 

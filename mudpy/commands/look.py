@@ -1,4 +1,4 @@
-from mudpy.mudlib.command import *
+from mudpy.command import *
 
 def look_cmd(cmd, requestor):
     if cmd.startswith('look at'):

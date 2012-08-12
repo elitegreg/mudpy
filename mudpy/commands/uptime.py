@@ -1,4 +1,4 @@
-from mudpy.mudlib.command import *
+from mudpy.command import *
 
 import datetime
 

@@ -1,6 +1,6 @@
 from .object import Object
 
-from mudpy.driver.database import ObjectCache
+from mudpy.database import ObjectCache
 
 import yaml
 

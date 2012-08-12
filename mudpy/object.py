@@ -1,4 +1,4 @@
-from mudpy.driver.database import *
+from mudpy.database import *
 
 import types
 import weakref

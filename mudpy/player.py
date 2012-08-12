@@ -2,10 +2,10 @@ from .object import Object
 
 from .command import command, CommandError
 
-from mudpy.driver import logging
+from mudpy import logging
 
-from mudpy.driver.check_color import *
-from mudpy.driver.database import *
+from mudpy.check_color import *
+from mudpy.database import *
 from mudpy.utils import ansi
 from mudpy.utils import passwd_tool
 

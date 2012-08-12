@@ -20,7 +20,7 @@ if __name__ == '__main__':
     from . import database
     from . import logging
 
-    from mudpy import mudlib # register mudlib classes with yaml
+    from mudpy import mudlib
 
     try:
         with Hub() as hub:

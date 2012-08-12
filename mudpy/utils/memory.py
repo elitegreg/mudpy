@@ -5,7 +5,7 @@ A module to get information about memory usage.
 import sys
 
 
-if sys.platform == 'linux2':
+if sys.platform.startswith('linux'):
   PAGESIZE = 4096 #: System page size
 
   def statm():

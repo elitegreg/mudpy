@@ -1,4 +1,4 @@
-from mudpy.driver import config
+from mudpy import config
 
 def has_color(term):
     if term in config.term.color_types:

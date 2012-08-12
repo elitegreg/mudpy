@@ -1,4 +1,4 @@
-from mudpy.driver import config
+from mudpy import config
 
 import io
 import sys
