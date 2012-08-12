@@ -17,6 +17,7 @@ class GameProperty:
     def __set__(self, obj, value):
         if self.__readonly:
             raise AttributeError("{} is readonly".format(self.__propname))
+        obj._Object__propdict[self.__propname] = value
 
     def __delete__(self, obj):
         if self.__readonly:
@@ -24,9 +25,6 @@ class GameProperty:
         delattr(obj, self.__propname)
 
 
-class TempGameProperty(GameProperty):
-    __slots__ = ('__propname', '__default', '__readonly')
-
-    def __init__(self, propname, default=None, readonly=False):
-        super().__init__(propname, default, readonly, tmp=True)
+def add_gameproperty(klass, propname, default=None, readonly=False, tmp=False):
+    setattr(klass, propname, GameProperty(propname, default, readonly, tmp))
 

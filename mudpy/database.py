@@ -169,9 +169,9 @@ class DB(Borg):
       if create:
         if not createdict:
           createdict = dict()
-        createdict['_Object__oid'] = oid
         obj = create.__new__(create)
         obj.__setstate__(createdict)
+        obj.oid = oid
         return obj
       raise DoesNotExist
 

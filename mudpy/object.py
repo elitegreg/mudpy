@@ -33,7 +33,7 @@ class weakset(set):
 
 
 class Object():
-  __slots__ = ('__oid', '__environment', '__inventory', '__propdict')
+  __slots__ = ('__oid', '__environment', '__inventory', '__propdict', '__weakref__')
 
   def __init__(self, oid):
     raise RuntimeError('Mudlib objects cannot be constructed!')
@@ -45,7 +45,7 @@ class Object():
 
   def __getattr__(self, attr):
     try:
-        return __propdict[attr]
+        return self.__propdict[attr]
     except KeyError:
         raise AttributeError(attr)
 
@@ -55,7 +55,7 @@ class Object():
     if self.environment:
       d['environment'] = self.environment.oid
 
-    d.update({k: v for k, v in self.__propdict.items()
+    d.update({k[14:]: v for k, v in self.__propdict.items()
               if k.startswith('_GameProperty_')})
 
     return d

@@ -6,6 +6,7 @@ from mudpy import logging
 
 from mudpy.check_color import *
 from mudpy.database import *
+from mudpy.gameproperty import add_gameproperty
 from mudpy.utils import ansi
 from mudpy.utils import passwd_tool
 
@@ -21,6 +22,8 @@ import yaml
 
 
 class Player(Object, yaml.YAMLObject):
+    __slots__ = ('__telnet_stream',)
+
     yaml_loader = yaml.SafeLoader
     yaml_tag = '!Player'
 
@@ -57,9 +60,9 @@ class Player(Object, yaml.YAMLObject):
         logging.info('Creating new player: {}', name)
 
         d = {
-            '_Player__name' : name,
-            '_Player__password' : passwd_tool.passwd(pass1),
-            '_Player__email' : email
+            'name' : name,
+            'password' : passwd_tool.passwd(pass1),
+            'email' : email
             }
 
         player = ObjectCache().get(oid, Player, d)
@@ -87,48 +90,17 @@ class Player(Object, yaml.YAMLObject):
 
         ts.sendtext('Goodbye!\n')
 
-    def __getstate__(self):
-        d = super().__getstate__()
-        d.pop('_Player__telnet_stream', None)
-        return d
-
     def __setstate__(self, newstate):
         super().__setstate__(newstate)
-
-        self.__dict__.setdefault(
-            '_Player__aliases', config.player.default_aliases.copy())
-        self.__dict__.setdefault(
-            '_Player__display_name', self.name.capitalize())
-        self.__dict__.setdefault(
-            '_Player__color', 'auto')
-
-        for i in ('last_ip', 'last_time'):
-            self.__dict__.setdefault('_Player__' + i, None)
-
+        if not self.aliases:
+            self.aliases = config.player.default_aliases.copy()
+        if not self.display_name:
+            self.display_name = self.name.capitalize()
         if not self.environment:
             self.environment = ObjectCache().get(Object_ID('/rooms/sample1'))
 
     def check_password(self, password):
-        return passwd_tool.compare(self.__password, password)
-
-    @property
-    def aliases(self):
-        return self.__aliases
-
-    @property
-    def email(self):
-        return self.__email
-
-    @property
-    def name(self):
-        return self.__name
-
-    @property
-    def display_name(self):
-        return self.__display_name
-
-    def setup(self):
-        super().setup()
+        return passwd_tool.compare(self.password, password)
 
     def write(self, msg):
         self.__telnet_stream.write(msg)
@@ -140,16 +112,16 @@ class Player(Object, yaml.YAMLObject):
         try:
             self.__telnet_stream = ts
 
-            if (self.__color == 'auto' and has_color(ts.options.term)) or \
-                    self.__color == 'on':
+            if (self.color == 'auto' and has_color(ts.options.term)) or \
+                    self.color == 'on':
                 self.__telnet_stream.colormap = ansi.ANSI_MAP
 
-            if self.__last_ip:
+            if self.last_ip:
                 ts.write('${BRIGHT_WHITE}Last login from %s on %s${DEFAULT}' % (
-                    self.__last_ip, self.__last_time))
+                    self.last_ip, self.last_time))
 
-            self.__last_ip = ts.socket.getpeername()[0]
-            self.__last_time = datetime.now().ctime()
+            self.last_ip = ts.socket.getpeername()[0]
+            self.last_time = datetime.now().ctime()
 
             command('look', self)
 
@@ -218,4 +190,15 @@ class PlayerTelnetStream(TelnetStream):
         msg = textwrap.fill(msg, width=self.options.window_size[0])
         msg += '\n'
         self.sendtext(msg)
+
+
+
+add_gameproperty(Player, 'name', readonly=True)
+add_gameproperty(Player, 'display_name')
+add_gameproperty(Player, 'password', readonly=True)
+add_gameproperty(Player, 'email')
+add_gameproperty(Player, 'last_ip')
+add_gameproperty(Player, 'last_time')
+add_gameproperty(Player, 'color', default='auto')
+add_gameproperty(Player, 'aliases')
 
