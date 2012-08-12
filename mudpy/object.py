@@ -4,9 +4,6 @@ import types
 import weakref
 
 
-class TmpVars():
-    pass
-
 class weakset(set):
   def __init__(self, callback):
     self.__callback = callback
@@ -36,6 +33,8 @@ class weakset(set):
 
 
 class Object():
+  __slots__ = ('__oid', '__environment', '__inventory', '__propdict')
+
   def __init__(self, oid):
     raise RuntimeError('Mudlib objects cannot be constructed!')
 
@@ -44,27 +43,34 @@ class Object():
     if self.environment == obj:
       self.environment = None # TODO we need better logic here!
 
-  def __getstate__(self):
-    d = self.__dict__.copy()
-    d.pop('_Object__oid')
-    d.pop('_Object__inventory')
-    d.pop('_Object__tmp')
+  def __getattr__(self, attr):
+    try:
+        return __propdict[attr]
+    except KeyError:
+        raise AttributeError(attr)
 
+  def __getstate__(self):
+    d = dict()
+    
     if self.environment:
-      d['_Object__environment'] = self.environment.oid
+      d['environment'] = self.environment.oid
+
+    d.update({k: v for k, v in self.__propdict.items()
+              if k.startswith('_GameProperty_')})
+
     return d
 
   def __setstate__(self, newstate):
-    self.__dict__ = newstate
+    self.__propdict = dict()
+    self.__propdict.update(
+        {'_GameProperty_{}'.format(k): v for k, v in newstate.items()
+         if k != 'environment'})
     self.__inventory = weakset(self.__de_ref)
-    self.__tmp = TmpVars()
+    self.__environment = None
 
-    if hasattr(self, '_Object__environment'):
-      oid = self.__environment
-      self.environment = None
+    if 'environment' in newstate:
+      oid = newstate['environment']
       move_object_to_oid(self, oid)
-    else:
-      self.__environment = None
 
   @property
   def environment(self):
@@ -89,10 +95,6 @@ class Object():
   @property
   def inventory(self):
     return self.__inventory    
-
-  @property
-  def tmp(self):
-    return self.__tmp    
 
   def save(self):
       DB().save_obj(self)
