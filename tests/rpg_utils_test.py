@@ -1,89 +1,98 @@
 from mudpy.utils import rpg_utils
 
-import random
 import unittest
 
 
-# Seed with a common seed so that we get predictable results
-random.seed(0)
+def rand_min(minimum, maximum):
+    return minimum
+
+
+def rand_max(minimum, maximum):
+    return maximum
+
+
+class AlternateRandom:
+    def __init__(self, minimum=False, maximum=False):
+        if (not minimum and not maximum) or \
+           (minimum and maximum):
+            raise RuntimeError('AlternateRandom must be in min or max mode')
+        if minimum:
+            self.func = rand_min
+        elif maximum:
+            self.func = rand_max
+
+    def __enter__(self):
+        self.old_func = rpg_utils.randint
+        rpg_utils.randint = self.func
+
+    def __exit__(self, *args, **kwargs):
+        rpg_utils.randint = self.old_func
 
 # TODO this set of tests should not use random!
 
 class Rpg_utils_TestCase(unittest.TestCase):
-  def test_roll_min_max(self):
-    '''Tests that for a given set of dice, the min and max is seen over
-    1000 rolls'''
+    def test_randint(self):
+        'This test is just for code coverage completeness'
+        self.assertTrue(type(rpg_utils.randint(0, 6)) is int)
 
-    rolls = list()
-    for i in range(0, 20):
-      rolls.append(rpg_utils.roll_dice(1))
-    self.assertEqual(min(*rolls), 1)
-    self.assertEqual(max(*rolls), 6)
+    def test_roll_min(self):
+        'Tests that for a given set of dice, the min is seen'
 
-    rolls = list()
-    for i in range(0, 50):
-      rolls.append(rpg_utils.roll_dice(1, 20))
-    self.assertEqual(min(*rolls), 1)
-    self.assertEqual(max(*rolls), 20)
+        # replace randint with out mock random function
+        with AlternateRandom(minimum=True):
+            self.assertEqual(rpg_utils.roll_dice(1), 1)
+            self.assertEqual(rpg_utils.roll_dice(1, 20), 1)
+            self.assertEqual(rpg_utils.roll_dice(2), 2)
+            self.assertEqual(rpg_utils.roll_dice(4, keep=3), 3)
 
-    rolls = list()
-    for i in range(0, 90):
-      rolls.append(rpg_utils.roll_dice(2))
-    self.assertEqual(min(*rolls), 2)
-    self.assertEqual(max(*rolls), 12)
+    def test_roll_max(self):
+        'Tests that for a given set of dice, the max is seen'
 
-    rolls = list()
-    for i in range(0, 1700):
-      rolls.append(rpg_utils.roll_dice(4, keep=3))
-    self.assertEqual(min(*rolls), 4)
-    self.assertEqual(max(*rolls), 18)
+        # replace randint with out mock random function
+        with AlternateRandom(maximum=True):
+            self.assertEqual(rpg_utils.roll_dice(1), 6)
+            self.assertEqual(rpg_utils.roll_dice(1, 20), 20)
+            self.assertEqual(rpg_utils.roll_dice(2), 12)
+            self.assertEqual(rpg_utils.roll_dice(4, keep=3), 18)
 
-  def test_dice_string_parsing(self):
-    '''Tests dice string parsing'''
-    (dice, constant) = rpg_utils.parse_dice_string('2D+2')
-    self.assertEqual(constant, 2)
-    self.assertEqual(dice, {6:2})
+    def test_dice_string_parsing(self):
+        'Tests dice string parsing'
+        (dice, constant) = rpg_utils.parse_dice_string('2D+2')
+        self.assertEqual(constant, 2)
+        self.assertEqual(dice, {6:2})
+  
+        (dice, constant) = rpg_utils.parse_dice_string('1d20+3d4+2d4+1d20+1')
+        self.assertEqual(constant, 1)
+        self.assertEqual(dice, {20: 2, 4: 5})
+  
+        (dice, constant) = rpg_utils.parse_dice_string('15')
+        self.assertEqual(constant, 15)
+        self.assertEqual(dice, {})
+  
+        self.assertRaises(RuntimeError, rpg_utils.parse_dice_string, '+1d2+1')
+        self.assertRaises(RuntimeError, rpg_utils.parse_dice_string, '1d2+1+')
+        self.assertRaises(RuntimeError, rpg_utils.parse_dice_string, '1d-1')
+        self.assertRaises(RuntimeError, rpg_utils.parse_dice_string, 'd20+1')
 
-    (dice, constant) = \
-      rpg_utils.parse_dice_string('1d20+3d4+2d4+1d20+1')
-    self.assertEqual(constant, 1)
-    self.assertEqual(dice, {20: 2, 4: 5})
+    def test_Stat_rolls_min(self):
+        'Tests that Stat()s can be created and roll the correct min'
 
-    (dice, constant) = \
-      rpg_utils.parse_dice_string('15')
-    self.assertEqual(constant, 15)
-    self.assertEqual(dice, {})
+        with AlternateRandom(minimum=True):
+            s = rpg_utils.Stat({5: 2}, 2)
+            self.assertEqual(s.roll(), 4)
+            self.assertEqual(s.roll(modifier=-10, minimum=0), 0)
+            s = rpg_utils.Stat.from_dice_string('2d+1')
+            self.assertEqual(s.roll(), 3)
 
-    self.assertRaises(RuntimeError, rpg_utils.parse_dice_string,
-        '+1d2+1')
-    self.assertRaises(RuntimeError, rpg_utils.parse_dice_string,
-        '1d2+1+')
-    self.assertRaises(RuntimeError, rpg_utils.parse_dice_string,
-        '1d-1')
-    self.assertRaises(RuntimeError, rpg_utils.parse_dice_string,
-        'd20+1')
+    def test_Stat_rolls_max(self):
+        'Tests that Stat()s can be created and roll the correct max'
 
-  def test_Stat_rolls_min_max(self):
-    '''Tests that Stat()s can be created and roll the correct min/max'''
-    s = rpg_utils.Stat({5: 2}, 2)
-    rolls = list()
-    for i in range(0, 40):
-      rolls.append(s.roll())
-    self.assertEqual(min(*rolls), 4)
-    self.assertEqual(max(*rolls), 12)
-
-    rolls = list()
-    for i in range(0, 40):
-      rolls.append(s.roll(modifier=-10, minimum=0))
-    self.assertEqual(min(*rolls), 0)
-    self.assertEqual(max(*rolls), 2)
-
-    s = rpg_utils.Stat.from_dice_string('2d+1')
-    rolls = list()
-    for i in range(0, 50):
-      rolls.append(s.roll())
-    self.assertEqual(min(*rolls), 4)
-    self.assertEqual(max(*rolls), 13)
+        with AlternateRandom(maximum=True):
+            s = rpg_utils.Stat({5: 2}, 2)
+            self.assertEqual(s.roll(), 12)
+            self.assertEqual(s.roll(modifier=-10, minimum=0), 2)
+            s = rpg_utils.Stat.from_dice_string('2d+1')
+            self.assertEqual(s.roll(), 13)
 
 
 if __name__ == '__main__':

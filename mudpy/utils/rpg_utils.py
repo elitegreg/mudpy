@@ -10,7 +10,11 @@ DICE_RE = re.compile('^(?P<count>\d+)[Dd](?P<sides>\d+)?$')
 DIGITS_RE = re.compile('^\d+$')
 
 
-def roll_dice(count, sides=6, keep=None, random_fun=random.randint):
+def randint(x, y):
+    return random.randint(x, y)
+
+
+def roll_dice(count, sides=6, keep=None):
   """
   Simulates dice rolls.
 
@@ -28,7 +32,7 @@ def roll_dice(count, sides=6, keep=None, random_fun=random.randint):
 
   rolls = list()
   for i in range(0, count):
-    rolls.append(random_fun(1, sides))
+    rolls.append(randint(1, sides))
   if keep is not None:
     if keep < count:
       rolls.sort()

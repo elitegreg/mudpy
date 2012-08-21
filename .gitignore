@@ -1,5 +1,6 @@
 *.pyc
 *.pyo
 .coverage
+coverage/
 sample/db
 __pycache__
