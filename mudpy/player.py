@@ -10,7 +10,7 @@ from mudpy.gameproperty import add_gameproperty
 from mudpy.utils import ansi
 from mudpy.utils import passwd_tool
 
-from greenlet import getcurrent
+from greenlet import getcurrent, GreenletExit
 
 from tyderium.telnet import *
 
@@ -32,7 +32,7 @@ class Player(Object, yaml.YAMLObject):
         while True:
             name = ts.prompt('New Character Name: ').lower()
 
-            if ' ' in name:
+            if ' ' in name or len(name) == 0:
                 ts.sendtext('Invalid Name.\n')
                 continue
 
@@ -126,7 +126,7 @@ class Player(Object, yaml.YAMLObject):
             command('look', self)
 
             while True:
-                cmd = ts.prompt('> ').strip().lower()
+                cmd = ts.prompt('> ', quit_on_eot=True).strip().lower()
       
                 if cmd == '':
                     continue
@@ -148,7 +148,9 @@ def new_connection(conn, addr):
         while True:
             name = ts.prompt('Character Name (or "new"): ').lower()
 
-            if name == 'new':
+            if name == '':
+                continue
+            elif name == 'new':
                 Player.new_character(ts)
                 return
             else:
@@ -176,13 +178,18 @@ class PlayerTelnetStream(TelnetStream):
 
         self.colormap = ansi.DEFAULT_MAP
 
-    def prompt(self, msg):
+    def prompt(self, msg, quit_on_eot=False):
         while True:
             try:
                 self.sendtext(msg)
                 return self.readline().rstrip()
             except Interrupt:
                 self.sendtext('\n')
+            except EOTRequested:
+                if quit_on_eot:
+                    return 'quit'
+                self.close()
+                raise GreenletExit
 
     def write(self, msg):
         # textwrap ignoring ESC sequences

@@ -11,6 +11,7 @@ __all__ = [
     'LineTooLong',
     'ConnectionClosed',
     'Interrupt',
+    'EOTRequested',
     'NoEcho',
     'Options',
     'TelnetStream'
@@ -19,6 +20,7 @@ __all__ = [
 class LineTooLong(IOError): pass
 class ConnectionClosed(IOError): pass
 class Interrupt(IOError): pass
+class EOTRequested(IOError): pass
 
 class Options:
     def __init__(self):
@@ -112,6 +114,14 @@ class TelnetStream:
     def socket(self):
         return self.__socket
 
+    def close(self):
+        self.__socket.close()
+        self.__socket = None
+
+    def recv(self, *args, **kwargs):
+        if self.__socket:
+            return self.__socket.recv(*args, **kwargs)
+
     def readline(self, binarycodec='utf8', endline='\n', maxlen=1024):
         suffix = endline.encode(binarycodec)
         suflen = len(endline)
@@ -132,14 +142,19 @@ class TelnetStream:
                 raise LineTooLong()
             self.__fill_queue()
 
+    def send(self, *args, **kwargs):
+        if self.__socket:
+            return self.__socket.send(*args, **kwargs)
+
     def sendtext(self, text, binarycodec='utf8'):
-        text = text.replace('\n', '\r\n')
-        if self.__output_binary:
-            buf = text.encode(
-                binarycodec, errors='replace').replace(IAC, IAC+IAC)
-        else:
-            buf = text.encode('ascii', errors='replace')
-        self.send(buf)
+        if self.__socket:
+            text = text.replace('\n', '\r\n')
+            if self.__output_binary:
+                buf = text.encode(
+                    binarycodec, errors='replace').replace(IAC, IAC+IAC)
+            else:
+                buf = text.encode('ascii', errors='replace')
+            return self.send(buf)
 
     def disable_binary_mode(self):
         self.send(_TelnetResponses.TELNET_WONT_BINARY)
@@ -157,7 +172,7 @@ class TelnetStream:
 
     def __fill_queue(self):
         if not self.__rawq:
-            self.__rawq = self.__socket.recv(self.buffer_size)
+            self.__rawq = self.recv(self.buffer_size)
             if not self.__rawq:
                 raise ConnectionClosed()
 
@@ -166,6 +181,8 @@ class TelnetStream:
               c = bytes([c])
               if not self.__iacseq:
                   if c not in (IAC, theNULL):
+                      if ord(c) == 4: # ctrl-d EOF/EOT
+                        raise EOTRequested()
                       self.__dataq[self.__sb] += c
                   else:
 

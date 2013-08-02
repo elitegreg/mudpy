@@ -165,7 +165,7 @@ class DB(Borg):
         obj = yaml.safe_load(fd)
       obj.oid = oid
       return obj
-    except IOError:
+    except FileNotFoundError:
       if create:
         if not createdict:
           createdict = dict()
