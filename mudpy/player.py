@@ -7,12 +7,13 @@ from mudpy import logging
 from mudpy.check_color import *
 from mudpy.database import *
 from mudpy.gameproperty import add_gameproperty
+from mudpy.telnet import *
 from mudpy.utils import ansi
 from mudpy.utils import passwd_tool
 
-from greenlet import getcurrent, GreenletExit
+from greenlet import GreenletExit
 
-from tyderium.telnet import *
+import gevent
 
 from datetime import datetime
 
@@ -67,7 +68,7 @@ class Player(Object, yaml.YAMLObject):
 
         player = ObjectCache().get(oid, Player, d)
         player.save()
-        getcurrent().hub.spawn(player.telnet_attach, ts)
+        gevent.spawn(player.telnet_attach, ts)
 
 
     @staticmethod
@@ -83,7 +84,7 @@ class Player(Object, yaml.YAMLObject):
                 pass1 = ts.prompt('Password: ')
 
             if player.check_password(pass1):
-                getcurrent().hub.spawn(player.telnet_attach, ts)
+                gevent.spawn(player.telnet_attach, ts)
                 return True
 
             ts.sendtext('Incorrect password!\n')

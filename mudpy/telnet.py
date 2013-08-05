@@ -1,8 +1,5 @@
 import errno
-import socket as stdsocket
-
-from .socket import socket
-from .util import sleep
+import socket
 
 from telnetlib import AO, AYT, BINARY, BRK, DM, DO, DONT, ECHO, IAC, IP, \
     LINEMODE, NAWS, SB, SGA, SE, TTYPE, TM, WILL, WONT, theNULL

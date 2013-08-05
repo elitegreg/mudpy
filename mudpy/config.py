@@ -2,8 +2,6 @@ from mudpy.utils.execfile import execfile
 
 import os
 
-from socket import AF_INET, AF_INET6
-
 class ConfigGroup: pass
 
 db = ConfigGroup()
@@ -15,9 +13,10 @@ log.time_format = '%Y%m%d %H:%M:%S'
 log.append_time_fraction = '.%03f'
 
 telnet = ConfigGroup()
-telnet.address_family = AF_INET6
-telnet.bind_address = ''
+telnet.bind_address = '::0'
 telnet.bind_port = 8888
+telnet.ssl_bind_address = telnet.bind_address
+telnet.ssl_bind_port = telnet.bind_port + 1
 telnet.terminal_type_support = True
 telnet.utf8_support = True
 telnet.window_size_support = True

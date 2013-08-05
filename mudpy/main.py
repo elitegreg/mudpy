@@ -1,9 +1,8 @@
+import gevent
+import gevent.server
+
 import optparse
 import os
-
-from tyderium.hub import Hub
-from tyderium.server import Listener
-from tyderium.timers import start_timer_service
 
 
 if __name__ == '__main__':
@@ -23,15 +22,26 @@ if __name__ == '__main__':
     from mudpy import mudlib
 
     try:
-        with Hub() as hub:
-            start_timer_service(hub)
+        telnet_server = gevent.server.StreamServer(
+            (config.telnet.bind_address, config.telnet.bind_port),
+            mudlib.player.new_connection)
+        telnet_server.start()
 
-            hub.spawn(
-                Listener(
-                    (config.telnet.bind_address, config.telnet.bind_port),
-                    mudlib.player.new_connection,
-                    pf=config.telnet.address_family).serve)
-            hub.switch()
+        ssl_bind_address = getattr(config.telnet, 'ssl_bind_address', None)
+        ssl_bind_port = getattr(config.telnet, 'ssl_bind_port', None)
+        ssl_cert = getattr(config.telnet, 'ssl_cert', None)
+
+        if ssl_bind_address and ssl_bind_port and ssl_cert:
+            ssl_telnet_server = gevent.server.StreamServer(
+                (config.telnet.bind_address, config.telnet.ssl_bind_port),
+                mudlib.player.new_connection,
+                certfile=ssl_cert)
+            ssl_telnet_server.start()
+
+        while True:
+            gevent.sleep(1)
+            # TODO heartbeat here?
+
     except KeyboardInterrupt:
         logging.fatal('MUD Shutdown due to keyboard request')
     except:
