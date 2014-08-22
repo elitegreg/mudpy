@@ -22,25 +22,26 @@ if __name__ == '__main__':
     from mudpy import mudlib
 
     try:
-        telnet_server = gevent.server.StreamServer(
-            (config.telnet.bind_address, config.telnet.bind_port),
-            mudlib.player.new_connection)
-        telnet_server.start()
+        with logging.initialize(getattr(config.log, 'log_file', None)):
+            telnet_server = gevent.server.StreamServer(
+                (config.telnet.bind_address, config.telnet.bind_port),
+                mudlib.player.new_connection)
+            telnet_server.start()
 
-        ssl_bind_address = getattr(config.telnet, 'ssl_bind_address', None)
-        ssl_bind_port = getattr(config.telnet, 'ssl_bind_port', None)
-        ssl_cert = getattr(config.telnet, 'ssl_cert', None)
+            ssl_bind_address = getattr(config.telnet, 'ssl_bind_address', None)
+            ssl_bind_port = getattr(config.telnet, 'ssl_bind_port', None)
+            ssl_cert = getattr(config.telnet, 'ssl_cert', None)
 
-        if ssl_bind_address and ssl_bind_port and ssl_cert:
-            ssl_telnet_server = gevent.server.StreamServer(
-                (config.telnet.bind_address, config.telnet.ssl_bind_port),
-                mudlib.player.new_connection,
-                certfile=ssl_cert)
-            ssl_telnet_server.start()
+            if ssl_bind_address and ssl_bind_port and ssl_cert:
+                ssl_telnet_server = gevent.server.StreamServer(
+                    (config.telnet.bind_address, config.telnet.ssl_bind_port),
+                    mudlib.player.new_connection,
+                    certfile=ssl_cert)
+                ssl_telnet_server.start()
 
-        while True:
-            gevent.sleep(1)
-            # TODO heartbeat here?
+            while True:
+                gevent.sleep(1)
+                # TODO heartbeat here?
 
     except KeyboardInterrupt:
         logging.fatal('MUD Shutdown due to keyboard request')
