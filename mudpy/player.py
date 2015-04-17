@@ -13,7 +13,7 @@ from mudpy.utils import passwd_tool
 
 from greenlet import GreenletExit
 
-import gevent
+import eventlet
 
 from datetime import datetime
 
@@ -68,7 +68,7 @@ class Player(Object, yaml.YAMLObject):
 
         player = ObjectCache().get(oid, Player, d)
         player.save()
-        gevent.spawn(player.telnet_attach, ts)
+        eventlet.spawn(player.telnet_attach, ts)
 
 
     @staticmethod
@@ -84,10 +84,9 @@ class Player(Object, yaml.YAMLObject):
                 pass1 = ts.prompt('Password: ')
 
             if player.check_password(pass1):
-                gevent.spawn(player.telnet_attach, ts)
-                return True
-
-            ts.sendtext('Incorrect password!\n')
+                player.telnet_attach(ts)
+            else:
+                ts.sendtext('Incorrect password!\n')
 
         ts.sendtext('Goodbye!\n')
 
