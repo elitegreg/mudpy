@@ -9,6 +9,14 @@ import time
 import traceback
 
 
+def monkey_patch():
+    try:
+        m = sys.modules['logging']
+        raise EnvironmentError('Cannot monkey-patch logging module')
+    except KeyError:
+        sys.modules['logging'] = sys.modules['mudpy.logging']
+
+
 class LogLevel(enum.Enum):
     FATAL = 0
     ERROR = 1
@@ -38,70 +46,143 @@ class LogLevel(enum.Enum):
     def __ge__(self, rhs):
         return self.__comparison__(rhs, op=operator.ge)
 
+    def __iadd__(self, rhs):
+        self.value = self.value + rhs
+        return self
+
+    def __add__(self, rhs):
+        return LogLevel(self.value + rhs)
+
+    def __isub__(self, rhs):
+        self.value = self.value - rhs
+        return self
+
+    def __sub__(self, rhs):
+        return LogLevel(self.value - rhs)
+
     def __repr__(self):
         return 'LogLevel.{}={}'.format(self.name, self.value)
 
     def __str__(self):
         return self.name
 
-def set_log_level(loglevelstring):
-    global CURRENT_LOG_LEVEL
-    CURRENT_LOG_LEVEL = LogLevel[loglevelstring]
 
-set_log_level(config.log.level)
-
+_log_file = sys.stdout
 @contextlib.contextmanager
-def initialize(filename=None, fp=None):
-    global LOGFILE
+def initialize(self, filename=None, fp=None):
+    global _log_file
     if filename and fp:
         raise RuntimeError('Filename and fp cannot be specified at the same time!')
     elif filename:
-        LOGFILE = open(filename, 'a')
+        _log_file = open(filename, 'a')
     elif fp:
-        LOGFILE = fp
+        _log_file = fp
     else:
-        LOGFILE = sys.stdout
+        _log_file = sys.stdout
     yield
-    LOGFILE.close()
+    _log_file.close()
 
-def _format_and_output(level, msg, *args, **kwargs):
-    tm = time.time()
-    ts = time.strftime(config.log.time_format, time.localtime(tm))
-    if config.log.append_time_fraction:
-        ts += config.log.append_time_fraction % (tm % 1)
-    msg = msg.format(*args, **kwargs)
-    print("{} [{}] - {}".format(tm, str(level), msg), file=LOGFILE)
 
-def log(level, msg, *args, **kwargs):
-    if CURRENT_LOG_LEVEL >= level:
-        _format_and_output(level, msg, *args, **kwargs)
+class Logger:
+    def __init__(self, name):
+        self.__name = name
+        self.__log_level = LogLevel.INFO
 
-def fatal(msg, *args, **kwargs):
-    return log(LogLevel.FATAL, msg, *args, **kwargs)
+    def setLevel(self, lvl):
+        if type(lvl) == type(''):
+            lvl = LogLevel[lvl]
+        self.__log_level = lvl
 
-def error(msg, *args, **kwargs):
-    return log(LogLevel.ERROR, msg, *args, **kwargs)
+    def log(self, level, msg, *args, **kwargs):
+        if self.__log_level >= level:
+            self._format_and_output(level, msg, *args, **kwargs)
 
-def warn(msg, *args, **kwargs):
-    return log(LogLevel.WARN, msg, *args, **kwargs)
+    def fatal(self, msg, *args, **kwargs):
+        return self.log(LogLevel.FATAL, msg, *args, **kwargs)
 
-def info(msg, *args, **kwargs):
-    return log(LogLevel.INFO, msg, *args, **kwargs)
+    def error(self, msg, *args, **kwargs):
+        return self.log(LogLevel.ERROR, msg, *args, **kwargs)
 
-def debug(msg, *args, **kwargs):
-    return log(LogLevel.DEBUG, msg, *args, **kwargs)
+    def warn(self, msg, *args, **kwargs):
+        return self.log(LogLevel.WARN, msg, *args, **kwargs)
 
-def trace(msg, *args, **kwargs):
-    if __debug__:
-        return log(LogLevel.TRACE, msg, *args, **kwargs)
-    return None
+    def info(self, msg, *args, **kwargs):
+        return self.log(LogLevel.INFO, msg, *args, **kwargs)
 
-def exception(msg, log_level=error, *args, **kwargs):
-    sio = io.StringIO()
-    sio.write(msg)
-    sio.write('\n')
-    traceback.print_exception(*sys.exc_info(), file=sio)
-    s = sio.getvalue()
-    sio.close()
-    log_level(s, *args, **kwargs)
+    def debug(self, msg, *args, **kwargs):
+        return self.log(LogLevel.DEBUG, msg, *args, **kwargs)
+
+    def trace(self, msg, *args, **kwargs):
+        if __debug__:
+            return self.log(LogLevel.TRACE, msg, *args, **kwargs)
+        return None
+
+    def exception(self, msg, log_level=LogLevel.ERROR, *args, **kwargs):
+        sio = io.StringIO()
+        sio.write(msg)
+        sio.write('\n')
+        traceback.print_exception(*sys.exc_info(), file=sio)
+        s = sio.getvalue()
+        sio.close()
+        self.log(log_level, s, *args, **kwargs)
+
+
+class _NewStyleLogger(Logger):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def _format_and_output(self, level, msg, *args, **kwargs):
+        tm = time.time()
+        ts = time.strftime(config.log.time_format, time.localtime(tm))
+        if config.log.append_time_fraction:
+            ts += config.log.append_time_fraction % (tm % 1)
+        msg = msg.format(*args, **kwargs)
+        print("{} [{}] - {}".format(ts, str(level), msg), file=_log_file)
+
+
+class _OldStyleLogger(Logger):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def _format_and_output(self, level, msg, *args, **kwargs):
+        tm = time.time()
+        ts = time.strftime(config.log.time_format, time.localtime(tm))
+        if config.log.append_time_fraction:
+            ts += config.log.append_time_fraction % (tm % 1)
+        msg = msg % args % kwargs
+        print("{} [{}] - {}".format(ts, str(level), msg), file=_log_file)
+
+
+_all_loggers = {}
+def getLogger(name, loggertype=_OldStyleLogger):
+    try:
+        return _all_loggers[name]
+    except KeyError:
+        logger = loggertype(name)
+        _all_loggers[name] = logger
+        return logger
+    
+_default_logger = getLogger('default', _NewStyleLogger)
+log = _default_logger.log
+fatal = _default_logger.fatal
+error = _default_logger.error
+warn = _default_logger.warn
+info = _default_logger.info
+debug = _default_logger.debug
+trace = _default_logger.trace
+exception = _default_logger.exception
+
+FATAL = LogLevel.FATAL
+ERROR = LogLevel.ERROR
+WARN  = LogLevel.WARN
+INFO  = LogLevel.INFO
+DEBUG = LogLevel.DEBUG
+TRACE = LogLevel.TRACE
+
+_default_logger.setLevel(config.log.level)
+
+for (name, type_and_lvl) in config.log.loggers.items():
+    (loggertype, lvl) = type_and_lvl
+    loggertype = globals()[loggertype]
+    getLogger(name, loggertype).setLevel(lvl)
 
