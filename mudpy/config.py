@@ -4,6 +4,8 @@ import os
 
 class ConfigGroup: pass
 
+max_login_attempts = 3
+
 db = ConfigGroup()
 db.path = None
 
