@@ -11,12 +11,9 @@ from mudpy.telnet import *
 from mudpy.utils import ansi
 from mudpy.utils import passwd_tool
 
-from greenlet import GreenletExit
-
-import eventlet
-
 from datetime import datetime
 
+import asyncio
 import socket
 import textwrap
 import yaml
@@ -29,34 +26,83 @@ class Player(Object, yaml.YAMLObject):
     yaml_tag = '!Player'
 
     @staticmethod
-    def new_character(ts):
+    async def login(proto):
+        addr = proto.transport.get_extra_info('peername')[0]
+
+        logging.info('New connection from: {}', addr)
+
+        try:
+            for i in range(0, config.max_login_attempts):
+                name = (await proto.prompt('Character Name (or "new"): ')).lower()
+
+                if name == 'new':
+                    player = await Player.new_character(proto)
+                    break
+                elif name != '':
+                    try:
+                        player = ObjectCache().get(Object_ID('/players/{}/player'.format(name)))
+                    except DoesNotExist:
+                        proto.sendtext('That Character Does Not Exist!\n')
+                        continue
+
+                    for i in range(0, 2):
+                        with NoEcho(proto):
+                            pass1 = await proto.prompt('Password: ')
+
+                        if not player.check_password(pass1):
+                            proto.sendtext('Incorrect password!\n')
+                        else:
+                            break
+                    else:
+                        player = None
+
+                    break
+            else:
+                player = None
+
+            if player:
+                await player.telnet_attach(proto)
+
+            proto.sendtext('Goodbye!\n')
+            proto.close()
+            raise ConnectionClosed()
+
+        except LineTooLong:
+            logging.info('Connection closed due to buffer overrun: {}', addr)
+        except ConnectionClosed:
+            logging.info('Connection closed: {}', addr)
+        except SenderTooFast:
+            logging.info('Connection closed due to fast sender (queue full): {}', addr)
+
+    @staticmethod
+    async def new_character(proto):
         while True:
-            name = ts.prompt('New Character Name: ').lower()
+            name = (await proto.prompt('New Character Name: ')).lower()
 
             if ' ' in name or len(name) == 0:
-                ts.sendtext('Invalid Name.\n')
+                proto.sendtext('Invalid Name.\n')
                 continue
 
             try:
-                oid = Object_ID('/players/%s/player' % name)
+                oid = Object_ID('/players/{}/player'.format(name))
                 player = ObjectCache().get(oid)
-                ts.sendtext('That name is already in use.\n')
+                proto.sendtext('That name is already in use.\n')
             except DoesNotExist:
                 break
 
         while True:
-            with NoEcho(ts):
-                pass1 = ts.prompt('Password: ')
-                ts.sendtext('\n')
-                pass2 = ts.prompt('Password (verify): ')
-                ts.sendtext('\n')
+            with NoEcho(proto):
+                pass1 = await proto.prompt('Password: ')
+                proto.sendtext('\n')
+                pass2 = await proto.prompt('Password (verify): ')
+                proto.sendtext('\n')
 
             if pass1 == pass2:
                 break
 
-            ts.sendtext('Passwords do not match!\n')
+            proto.sendtext('Passwords do not match!\n')
 
-        email = ts.prompt('EMail Address: ')
+        email = await proto.prompt('EMail Address: ')
 
         logging.info('Creating new player: {}', name)
 
@@ -68,27 +114,7 @@ class Player(Object, yaml.YAMLObject):
 
         player = ObjectCache().get(oid, Player, d)
         player.save()
-        eventlet.spawn(player.telnet_attach, ts)
-
-
-    @staticmethod
-    def login(ts, name):
-        try:
-            player = ObjectCache().get(Object_ID('/players/%s/player' % name))
-        except DoesNotExist:
-            ts.sendtext('That Character Does Not Exist!\n')
-            return False
-
-        for i in range(0, 2):
-            with NoEcho(ts):
-                pass1 = ts.prompt('Password: ')
-
-            if player.check_password(pass1):
-                player.telnet_attach(ts)
-            else:
-                ts.sendtext('Incorrect password!\n')
-
-        ts.sendtext('Goodbye!\n')
+        return player
 
     def __setstate__(self, newstate):
         super().__setstate__(newstate)
@@ -108,25 +134,25 @@ class Player(Object, yaml.YAMLObject):
     def disconnect(self):
         self.__telnet_stream.close()
 
-    def telnet_attach(self, ts):
+    async def telnet_attach(self, proto):
         try:
-            self.__telnet_stream = ts
+            self.__telnet_stream = proto
 
-            if (self.color == 'auto' and has_color(ts.options.term)) or \
+            if (self.color == 'auto' and has_color(proto.options.term)) or \
                     self.color == 'on':
                 self.__telnet_stream.colormap = ansi.ANSI_MAP
 
             if self.last_ip:
-                ts.write('${BRIGHT_WHITE}Last login from %s on %s${DEFAULT}' % (
+                proto.write('${{BRIGHT_WHITE}}Last login from {} on {}${{DEFAULT}}'.format(
                     self.last_ip, self.last_time))
 
-            self.last_ip = ts.socket.getpeername()[0]
+            self.last_ip = proto.transport.get_extra_info('peername')[0]
             self.last_time = datetime.now().ctime()
 
             command('look', self)
 
             while True:
-                cmd = ts.prompt('> ', quit_on_eot=True).strip().lower()
+                cmd = (await proto.prompt('> ', quit_on_eot=True)).strip().lower()
       
                 if cmd == '':
                     continue
@@ -134,41 +160,19 @@ class Player(Object, yaml.YAMLObject):
                     try:
                         command(cmd, self)
                     except CommandError as e:
-                        ts.write(str(e))
+                        proto.write(str(e))
         except (ConnectionClosed, socket.error):
             self.__telnet_stream = None
 
 
-def new_connection(conn, addr):
-    try:
-        logging.info('New connection from: {}', addr[0])
-
-        ts = PlayerTelnetStream(conn)
-
-        while True:
-            name = ts.prompt('Character Name (or "new"): ').lower()
-
-            if name == '':
-                continue
-            elif name == 'new':
-                Player.new_character(ts)
-                return
-            else:
-                if Player.login(ts, name):
-                    return
-    except LineTooLong:
-        logging.info('Connection closed due to buffer overrun: {}',
-                     addr[0])
-        conn.close()
-    except ConnectionClosed:
-        logging.info('Connection closed: {}', addr[0])
-        conn.close()
-
-
-class PlayerTelnetStream(TelnetStream):
+class PlayerTelnetProtocol(TelnetProtocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+        self.colormap = ansi.DEFAULT_MAP
+
+    def connection_made(self, transport):
+        super().connection_made(transport)
+
         if config.telnet.terminal_type_support:
             self.request_terminal_type()
         if config.telnet.utf8_support:
@@ -176,20 +180,23 @@ class PlayerTelnetStream(TelnetStream):
         if config.telnet.window_size_support:
             self.request_window_size()
 
-        self.colormap = ansi.DEFAULT_MAP
+        asyncio.get_event_loop().create_task(Player.login(self))
 
-    def prompt(self, msg, quit_on_eot=False):
+    async def prompt(self, msg, quit_on_eot=False):
         while True:
             try:
                 self.sendtext(msg)
-                return self.readline().rstrip()
+                data = (await self.readline()).rstrip()
+                if self.echo is False:
+                    self.sendtext('\n')
+                return data
             except Interrupt:
                 self.sendtext('\n')
             except EOTRequested:
                 if quit_on_eot:
                     return 'quit'
                 self.close()
-                raise GreenletExit
+                raise asyncio.CancelledError()
 
     def write(self, msg):
         # textwrap ignoring ESC sequences
@@ -197,7 +204,6 @@ class PlayerTelnetStream(TelnetStream):
         msg = textwrap.fill(msg, width=self.options.window_size[0])
         msg += '\n'
         self.sendtext(msg)
-
 
 
 add_gameproperty(Player, 'name', readonly=True)

@@ -4,6 +4,8 @@ import os
 
 class ConfigGroup: pass
 
+max_login_attempts = 3
+
 db = ConfigGroup()
 db.path = None
 
@@ -11,6 +13,7 @@ log = ConfigGroup()
 log.level = 'INFO'
 log.time_format = '%Y%m%d %H:%M:%S'
 log.append_time_fraction = '.%03f'
+log.loggers = {}
 
 telnet = ConfigGroup()
 telnet.bind_address = '::0'

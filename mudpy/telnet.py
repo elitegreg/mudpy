@@ -1,5 +1,7 @@
+import asyncio
 import errno
-import socket
+
+from socket import MSG_OOB
 
 from telnetlib import AO, AYT, BINARY, BRK, DM, DO, DONT, ECHO, IAC, IP, \
     LINEMODE, NAWS, SB, SGA, SE, TTYPE, TM, WILL, WONT, theNULL
@@ -9,15 +11,17 @@ __all__ = [
     'ConnectionClosed',
     'Interrupt',
     'EOTRequested',
+    'SenderTooFast',
     'NoEcho',
     'Options',
-    'TelnetStream'
+    'TelnetProtocol'
 ]
 
 class LineTooLong(IOError): pass
 class ConnectionClosed(IOError): pass
 class Interrupt(IOError): pass
 class EOTRequested(IOError): pass
+class SenderTooFast(IOError): pass
 
 class Options:
     def __init__(self):
@@ -65,21 +69,25 @@ class _TelnetResponses:
 
 
 class NoEcho:
-    def __init__(self, telnetstream):
-        self.__telnetstream = telnetstream
+    def __init__(self, telnetproto):
+        self.__telnetproto = telnetproto
 
     def __enter__(self, *args, **kwargs):
-        self.__telnetstream.send(_TelnetResponses.TELNET_WILL_ECHO)
+        self.__telnetproto.echo = False
 
     def __exit__(self, *args, **kwargs):
-        self.__telnetstream.send(_TelnetResponses.TELNET_WONT_ECHO)
+        self.__telnetproto.echo = True
 
 
-class TelnetStream:
+class TelnetProtocol(asyncio.Protocol):
     buffer_size = 1024
+    inbound_q_size = 16
+    binarycodec = 'utf8'
+    endline = '\n'.encode(binarycodec)
+    maxlinelen = 1024
 
-    def __init__(self, socket):
-        self.__socket = socket
+    def __init__(self):
+        self.__transport = None
         self.__rawq = b''
         self.__dataq = [b'', b'']
         self.__iacseq = b''
@@ -88,12 +96,11 @@ class TelnetStream:
         self.__output_binary = False
         self.__binary_requested = False
         self.__options = Options()
+        self.__inbound_q = asyncio.Queue(TelnetProtocol.inbound_q_size)
+        self.__echo = True
 
     def __getattr__(self, attr):
-        return getattr(self.__socket, attr)
-
-    def __repr__(self):
-        return self.__socket.getpeername()[0]
+        return getattr(self.__transport, attr)
 
     @property
     def input_binary(self):
@@ -108,43 +115,64 @@ class TelnetStream:
         return self.__options
 
     @property
-    def socket(self):
-        return self.__socket
+    def transport(self):
+        return self.__transport
+
+    @property
+    def echo(self):
+        return self.__echo
+
+    @echo.setter
+    def echo(self, echo):
+        if echo:
+            self.__echo = True
+            self.send(_TelnetResponses.TELNET_WONT_ECHO)
+        else:
+            self.__echo = False
+            self.send(_TelnetResponses.TELNET_WILL_ECHO)
 
     def close(self):
-        self.__socket.close()
-        self.__socket = None
+        if self.__transport:
+            self.__transport.close()
 
-    def recv(self, *args, **kwargs):
-        if self.__socket:
-            return self.__socket.recv(*args, **kwargs)
+    def connection_made(self, transport):
+        self.__transport = transport
 
-    def readline(self, binarycodec='utf8', endline='\n', maxlen=1024):
-        suffix = endline.encode(binarycodec)
-        suflen = len(endline)
+    def connection_lost(self, exc=None):
+        self.__transport = None
+        if exc is None:
+            exc = ConnectionClosed()
+        self.__inbound_q_put(exc)
 
-        while True:
-            idx = self.__dataq[0].find(suffix)
-            if idx >= 0:
-                idx += suflen
-                res = self.__dataq[0][:idx]
-                self.__dataq[0] = self.__dataq[0][idx:]
-                if self.output_binary: # I don't understand this block?
-                    self.send(b'\r')
-                return res.decode(
-                    binarycodec if self.__input_binary else 'ascii')
-            oldlen = len(self.__dataq[0])
-            if maxlen <= oldlen:
-                self.__socket.close()
-                raise LineTooLong()
-            self.__fill_queue()
+    async def readline(self):
+        line = await self.__inbound_q.get()
+        if isinstance(line, IOError):
+            raise line
+        return line
+
+    def data_received(self, data):
+        self.__fill_queue(data)
+        idx = self.__dataq[0].find(TelnetProtocol.endline)
+        if idx >= 0:
+            idx += len(TelnetProtocol.endline)
+            res = self.__dataq[0][:idx]
+            self.__dataq[0] = self.__dataq[0][idx:]
+            if self.output_binary: # I don't understand this block?
+                self.transport.write(b'\r')
+            self.__inbound_q_put(res.decode(
+                TelnetProtocol.binarycodec if self.__input_binary else 'ascii'))
+                
+        oldlen = len(self.__dataq[0])
+        if TelnetProtocol.maxlinelen <= oldlen:
+            self.close()
+            self.__inbound_q_put(LineTooLong())
 
     def send(self, *args, **kwargs):
-        if self.__socket:
-            return self.__socket.send(*args, **kwargs)
+        if self.__transport:
+            return self.__transport.write(*args, **kwargs)
 
     def sendtext(self, text, binarycodec='utf8'):
-        if self.__socket:
+        if self.__transport:
             text = text.replace('\n', '\r\n')
             if self.__output_binary:
                 buf = text.encode(
@@ -167,11 +195,18 @@ class TelnetStream:
     def request_window_size(self):
         self.send(_TelnetResponses.TELNET_DO_NAWS)
 
-    def __fill_queue(self):
+    def __inbound_q_put(self, data):
+        try:
+            self.__inbound_q.put_nowait(data)
+        except asyncio.QueueFull:
+            self.close()
+            asyncio.get_event_loop().create_task(self.__inbound_q.put(SenderTooFast('inbound queue full')))
+
+    def __fill_queue(self, data):
         if not self.__rawq:
-            self.__rawq = self.recv(self.buffer_size)
-            if not self.__rawq:
-                raise ConnectionClosed()
+            self.__rawq = data
+        else:
+            self.__rawq += data
 
         try:
           for (i, c) in enumerate(self.__rawq):
@@ -179,7 +214,7 @@ class TelnetStream:
               if not self.__iacseq:
                   if c not in (IAC, theNULL):
                       if ord(c) == 4: # ctrl-d EOF/EOT
-                        raise EOTRequested()
+                        self.__inbound_q_put(EOTRequested())
                       self.__dataq[self.__sb] += c
                   else:
 
@@ -217,12 +252,11 @@ class TelnetStream:
             self.send(_TelnetResponses.TELNET_BREAK_RESPONSE)
         elif cmd == IP:
             self.send(_TelnetResponses.TELNET_IP_RESPONSE)
-            raise Interrupt()
+            self.__inbound_q_put(Interrupt())
         elif cmd == AYT:
             self.send(_TelnetResponses.TELNET_AYT_RESPONSE)
         elif cmd == AO:
-            self.sock.send(_TelnetResponses.TELNET_ABORT_RESPONSE,
-                socket.MSG_OOB)
+            self.sock.send(_TelnetResponses.TELNET_ABORT_RESPONSE, MSG_OOB)
         elif cmd == WILL:
             if opt == TTYPE:
                 self.send(_TelnetResponses.TELNET_TERM_QUERY)
@@ -258,7 +292,8 @@ class TelnetStream:
                 self.send(IAC + WONT + opt)
         elif cmd == DONT:
             if opt == SGA:
-                raise RuntimeError('Client requested "DONT SGA": not supported')
+                self.__inbound_q_push(
+                    IOError('Client requested "DONT SGA": not supported'))
             elif opt == BINARY:
                 self.__output_binary = False
         elif cmd == SE:
